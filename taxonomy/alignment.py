@@ -4,7 +4,22 @@ from string import Template
 from Bio import SeqIO, AlignIO
 from Bio.Seq import Seq, SeqRecord
 
+PROFILE_TYPES = ( 'hmmer3', 'infernal1', 'infernal1mpi', )
 
+# Default options that can be used by scripts.
+# Keys for search_options and alignment options must map to a valid profile.
+ALIGNMENT_DEFAULTS = {
+                        'min_length' : 1,
+                        'profile' : 'hmmer3',
+                        'search_options' : { 'hmmer3' : '--notextw --noali',
+                                             'infernal1' : '',
+                                             'infernal1mpi' : '',
+                                           },
+                        'alignment_options' : { 'hmmer3' : '--mapali', 
+                                                'infernal1' : '',   
+                                                'infernal1mpi' : '',   
+                                              },
+                     }
 
 
 class Alignment(object):
@@ -15,7 +30,9 @@ class Alignment(object):
     A "mask" is just a boolean list, with True meaning include.
     """
 
-    def __init__(self, reference_package, out_prefix, profile_version, min_length=None, debug=False, verbose=False):
+    def __init__(self, reference_package, out_prefix, profile_version, 
+                 sequence_file, search_options, alignment_options,
+                 min_length=None, debug=False, verbose=False):
         """
         Constructor - sets up a number of properties when instantiated.
         """
@@ -37,7 +54,11 @@ class Alignment(object):
             out_prefix = os.path.join(self.reference_package, self.reference_package_name_prefix) + '.'
 
         if min_length:
-	    self.min_length = min_length
+            self.min_length = min_length
+
+        self.sequence_file = sequence_file
+        self.search_options = search_options
+        self.alignment_options = alignment_options
 
         # Read in CONTENTS.json and retrieve settings we will be working with.
         json_file = os.path.join(reference_package, 'CONTENTS.json')
@@ -47,48 +68,52 @@ class Alignment(object):
         self.aln_fasta = os.path.join(aln_fasta, json_contents['files']['aln_fasta'])
         self.profile = os.path.join(profile, json_contents['files']['profile'])
 
+        self.profile_version = profile_version
         # There is no reason to go beyond this point if the profile is not valid.
-        if not self.match_model(profile_version):
+        if not self.match_model():
             raise Exception, 'profile: ' + self.profile + ' does not appear to be valid.' + \
                              ' Version match specified: ' + profile_version
  
         # read in the consensus RF line
-	self.consensus_list = self._consensus_list_of_sto(self.aln_sto)
+        self.consensus_list = self._consensus_list_of_sto(self.aln_sto)
 
         # debugging
-	# print ("".join(map(lambda(b): str(int(b)), self.consensus_list)))
+        # print ("".join(map(lambda(b): str(int(b)), self.consensus_list)))
 
         # initialize the masking
         if 'mask' in json_contents['files']:
             self.mask_file = os.path.join(self.reference_package, json_contents['files']['mask'])
-	
-	    sto_len = self._get_sequence_length(self.aln_sto, "stockholm")
+   
+        sto_len = self._get_sequence_length(self.aln_sto, "stockholm")
 
-	    self.trimal_mask = self._mask_of_file(self.mask_file, sto_len)
-	    # first make sure that the trimal mask only includes consensus columns according to HMMER
-	    for pos in range(sto_len):
-	        if self.trimal_mask[pos] & (not self.consensus_list[pos]):
-		    print("trying to include a non-consensus column %d in the mask" % pos)
-                    raise Exception, "trying to include a (non-consensus column " + \
+        self.trimal_mask = self._mask_of_file(self.mask_file, sto_len)
+        # first make sure that the trimal mask only includes consensus columns according to HMMER
+        for pos in range(sto_len):
+            if self.trimal_mask[pos] & (not self.consensus_list[pos]):
+                print("trying to include a non-consensus column %d in the mask" % pos)
+                raise Exception, "trying to include a (non-consensus column " + \
                                      str(pos) + " in the mask"
 
-	    # Now we make consensus_only_mask, which is the mask after we have taken just the consensus columns.
-            self.consensus_only_mask = self._mask_list(mask=self.consensus_list, to_mask=self.trimal_mask)
+        # Now we make consensus_only_mask, which is the mask after we have taken just the consensus columns.
+        self.consensus_only_mask = self._mask_list(mask=self.consensus_list, to_mask=self.trimal_mask)
 
 
             
     # Public methods
 
-    def hmmer_search(self, sequence_file, search_options=''):
+    def hmmer_search(self):
         """
         Recruit fragments using hmmsearch.  Works with a single sequence file, further 
         work would be required if it is to be expanded to work with multiple sequence files.
         """
         # hmmsearch must be in PATH for this to work.
+        if self.verbose: print 'Entering hmmer_search()'
         hmmsearch_output_file = self.out_prefix + '.search_out.sto'
-        hmmsearch_command = 'hmmsearch --notextw --noali ' + \
-                            search_options + ' -A ' + hmmsearch_output_file + \
-                            ' ' + self.profile + ' ' + sequence_file
+        hmmsearch_command = 'hmmsearch ' + self.search_options + \
+                            ' -A ' + hmmsearch_output_file + \
+                            ' ' + self.profile + ' ' + self.sequence_file
+
+        if self.debug: print "Command to execute: \n    " + hmmsearch_command
 
         child = subprocess.Popen(hmmsearch_command,
                                  stdin=None,
@@ -104,13 +129,18 @@ class Alignment(object):
             raise Exception, "hmmsearch command failed: \n" + hmmsearch_command
 
 
-    def hmmer_align(self, sequence_files, 
+    def hmmer_align(self, sequence_file=None, 
                     frag=False, ref=False, sequence_file_format='fasta'):
         """
         Create an alignment with hmmalign. Then, separate out reference sequences 
         from the fragments into two separate files. Note that mask=True forces 
         a consensus action.
         """
+        if self.verbose: print 'Entering hmmer_align()'
+        # If sequence_file not specified, we'll just work with
+        # self.sequence_file.
+        if not sequence_file:
+            sequence_file = self.sequence_file
 
         # Get first sequence length from an alignment.
         aln_sto_length = self._get_sequence_length(self.aln_sto, 'stockholm')
@@ -121,77 +151,77 @@ class Alignment(object):
         # hmmalign must be in PATH for this to work.
         hmmer_template = Template('hmmalign -o $together_aln' + ' --mapali ' + \
                                   self.aln_sto + ' ' + self.profile + ' $sequence_file')
-        for sequence_file in sequence_files:
-            
-            together_aln = self.out_prefix + '.align_out.sto'
-            _,sequence_file_name = os.path.split(sequence_file)
-            sequence_file_name_prefix = string.join(list(os.path.splitext(sequence_file_name))[0:-1])
+        
+        together_aln = self.out_prefix + '.align_out.sto'
+        _,sequence_file_name = os.path.split(sequence_file)
+        sequence_file_name_prefix = string.join(list(os.path.splitext(sequence_file_name))[0:-1])
 
-            hmmalign_command = hmmer_template.substitute(sequence_file=sequence_file,
-                                                         aln_sto=self.aln_sto,
-                                                         profile=self.profile,
-                                                         together_aln=together_aln,
+        hmmalign_command = hmmer_template.substitute(sequence_file=sequence_file,
+                                                     aln_sto=self.aln_sto,
+                                                     profile=self.profile,
+                                                     together_aln=together_aln,
+                                                    )
+        if self.debug: print "Command to execute: \n    " + hmmalign_command
+
+        try:
+            child = subprocess.Popen(hmmalign_command,
+                                     stdin=None,
+                                     stdout=None,
+                                     stderr=None,
+                                     shell=(sys.platform!="win32"))
+            return_code = child.wait()
+
+        
+            # If return code was not 1, split off the reference sequences from the fragments.
+            if not return_code:
+
+                frag_names = self._names(SeqIO.parse(sequence_file, sequence_file_format))
+
+                # pull up the together_aln then mask it
+                def make_masked_iterator():
+                    full_aln = SeqIO.parse(together_aln, "stockholm")
+                    aln_consensus_list = self._consensus_list_of_sto(together_aln)
+                    return(self._min_length_filter(
+                                        self.min_length,
+                                        self._maskerator(
+                                            # mask using the consensus_only mask
+                                            self.consensus_only_mask, 
+                                            # after taking only the alignment columns
+                                            self._maskerator(aln_consensus_list, full_aln)
                                                         )
-
-            try:
-                child = subprocess.Popen(hmmalign_command,
-                                         stdin=None,
-                                         stdout=None,
-                                         stderr=None,
-                                         shell=(sys.platform!="win32"))
-                return_code = child.wait()
-
+                                                  )
+                          )
             
-                # If return code was not 1, split off the reference sequences from the fragments.
-                if not return_code:
+                SeqIO.write(self._id_filter(make_masked_iterator(), lambda(idstr): idstr in frag_names), 
+                            self.out_prefix + '.masked.fasta', "fasta")
 
-                    frag_names = self._names(SeqIO.parse(sequence_file, sequence_file_format))
-   
-                    # pull up the together_aln then mask it
-                    def make_masked_iterator():
-			full_aln = SeqIO.parse(together_aln, "stockholm")
-			aln_consensus_list = self._consensus_list_of_sto(together_aln)
-			return(
-			    self._min_length_filter(
-			        self.min_length,
-				self._maskerator(
-				    # mask using the consensus_only mask
-				    self.consensus_only_mask, 
-				    # after taking only the alignment columns
-				    self._maskerator(aln_consensus_list, full_aln))))
-			    
-                    SeqIO.write(self._id_filter(make_masked_iterator(), lambda(idstr): idstr in frag_names), 
-                                self.out_prefix + '.masked.fasta', "fasta")
+                SeqIO.write(self._id_filter(make_masked_iterator(), lambda(idstr): idstr not in frag_names), 
+                            self.out_prefix + '.refs.fasta', "fasta")
 
-                    SeqIO.write(self._id_filter(make_masked_iterator(), lambda(idstr): idstr not in frag_names), 
-                                self.out_prefix + '.refs.fasta', "fasta")
-
-	    except:
+        except:
                 raise
-	    # we may want to tidy things up with an option later, but for now we just leave everything around.
+            # we may want to tidy things up with an option later, but for now we just leave everything around.
             # finally:
             #     # Always remove the temporary alignment file
             #     os.remove(tmp_file)
 
 
-    def match_model(self, version=r'\d+'):
+    def match_model(self):
         """
-        Verify that the header contents look to be from a specific model, 
-        determined by the file extension (e.g. .cm, .hmm, etc.).  version 
-        option defaults to any version, but can take a specific number or 
-        a regular expression.
+        Verify that the header contents look to be from a specific profile
+        version.
         """
         file_type = os.path.splitext(self.profile)[1]
-        header = self._extract_header(file_type=file_type)
+        header = self._extract_header()
 
         is_match = False
-        if file_type == '.cm':
+        if self.profile_version.startswith('infernal1'):
             # Match a couple of things one would expect to find in a .cm file.
-            cm_header = re.compile(r"^INFERNAL-" + str(version) + r".*MODEL", re.MULTILINE|re.DOTALL)
+            cm_header = re.compile(r"^INFERNAL-1" + r".*MODEL", re.MULTILINE|re.DOTALL)
             is_match = bool(cm_header.search(header))
-        if file_type == '.hmm':
+        if self.profile_version == 'hmmer3':
             # Match a couple of things one would expect to find in a .hmm file.
-            hmm_header = re.compile(r"^HMMER" + str(version) + r".*CKSUM", re.MULTILINE|re.DOTALL)
+            hmm_header = re.compile(r"^HMMER3" + r".*CKSUM", re.MULTILINE|re.DOTALL)
             is_match = bool(hmm_header.search(header))
 
         return is_match
@@ -238,17 +268,14 @@ class Alignment(object):
 	        print record.id + " is too short"  
 
 
-    def _extract_header(self, file_type):
+    def _extract_header(self):
         """
-        Extract the header portion of the file.
+        Extract the header portion of the file, approximately.
         """
-        line_count = 0
-        if file_type == '.hmm':
-            line_count = 14
-        elif file_type == '.cm':
-            line_count = 14
-        
-        # Only read in the first <line_count> lines to extract just the header.
+        line_count = 20
+
+        # Only read in the first <line_count> lines to extract the header,
+        # approximately.
         with open(self.profile, 'r') as model:
             header = ''.join([model.readline() for i in range(line_count)])
         return header
