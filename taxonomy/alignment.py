@@ -17,7 +17,7 @@ ALIGNMENT_DEFAULTS = {
                                              'infernal1' : '',
                                              'infernal1mpi' : '',
                                            },
-                        'alignment_options' : { 'hmmer3' : '--mapali', 
+                        'alignment_options' : { 'hmmer3' : '--mapali $aln_sto', 
                                                 'infernal1' : '',   
                                                 'infernal1mpi' : '',   
                                               },
@@ -152,8 +152,11 @@ class Alignment(object):
             sequence_file_format = self.sequence_file_format
 
         # hmmalign must be in PATH for this to work.
-        hmmer_template = Template('hmmalign -o $together_aln' + ' --mapali ' + \
-                                  self.aln_sto + ' ' + self.profile + ' $sequence_file')
+        hmmer_template = Template('hmmalign -o $together_aln ' + \
+                                   self.alignment_options + ' ' + \
+                                   '$profile $sequence_file')
+
+        if self.debug: print "hmmer_template: \n    " + hmmer_template.template
         
         together_aln = self.out_prefix + '.align_out.sto'
         _,sequence_file_name = os.path.split(sequence_file)

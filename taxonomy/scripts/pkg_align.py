@@ -109,10 +109,13 @@ def parse_arguments(action_arguments=None):
         subparser = subparsers.choices[subcommand]
 
         subparser.add_argument('--align-opts', dest='alignment_options', metavar='OPTS',
-                            help='Alignment options, such as "--mapali "' + \
+                            help='Alignment options, such as "--mapali $aln_sto".' + \
+                            ' $ characters will need to be escaped if ' + \
+                            'using template variables. ' + \
+                            'Available template variables are ' + \
+                            '$aln_sto, $profile. ' + \
                             " Defaults are as follows for the different ' + \
-                            profiles: " + \
-                            align_defaults)
+                            profiles: " + align_defaults)
         subparser.add_argument('--profile-version', dest='profile_version',
                             default=ALIGNMENT_DEFAULTS['profile'],
                             choices=PROFILE_TYPES,
