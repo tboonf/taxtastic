@@ -1,9 +1,11 @@
 #!/usr/bin/env python
-import json, sys, os, string, argparse, subprocess, re
+import json, sys, os, string, subprocess, re
 from string import Template
 from Bio import SeqIO, AlignIO
 from Bio.Seq import Seq, SeqRecord
+from itertools import islice
 
+# Supported profiles
 PROFILE_TYPES = ( 'hmmer3', 'infernal1', 'infernal1mpi', )
 
 # Default options that can be used by scripts.
@@ -19,6 +21,7 @@ ALIGNMENT_DEFAULTS = {
                                                 'infernal1' : '',   
                                                 'infernal1mpi' : '',   
                                               },
+                        'sequence_file_format' : 'fasta',
                      }
 
 
@@ -31,8 +34,9 @@ class Alignment(object):
     """
 
     def __init__(self, reference_package, out_prefix, profile_version, 
-                 sequence_file, search_options, alignment_options,
-                 min_length=None, debug=False, verbose=False):
+                 sequence_file, sequence_file_format, alignment_options,
+                 search_options=None, min_length=None, debug=False, 
+                 verbose=False):
         """
         Constructor - sets up a number of properties when instantiated.
         """
@@ -59,6 +63,7 @@ class Alignment(object):
         self.sequence_file = sequence_file
         self.search_options = search_options
         self.alignment_options = alignment_options
+        self.sequence_file_format = sequence_file_format
 
         # Read in CONTENTS.json and retrieve settings we will be working with.
         json_file = os.path.join(reference_package, 'CONTENTS.json')
@@ -113,7 +118,7 @@ class Alignment(object):
                             ' -A ' + hmmsearch_output_file + \
                             ' ' + self.profile + ' ' + self.sequence_file
 
-        if self.debug: print "Command to execute: \n    " + hmmsearch_command
+        if self.debug: print "Command to execute: \n\t" + hmmsearch_command
 
         child = subprocess.Popen(hmmsearch_command,
                                  stdin=None,
@@ -126,11 +131,13 @@ class Alignment(object):
         if not return_code:
             return hmmsearch_output_file
         else:
-            raise Exception, "hmmsearch command failed: \n" + hmmsearch_command
+            raise Exception, "hmmsearch command failed: \n\t" + hmmsearch_command
+        if self.verbose: print 'Leaving hmmer_search()'
 
 
-    def hmmer_align(self, sequence_file=None, 
-                    frag=False, ref=False, sequence_file_format='fasta'):
+    def hmmer_align(self, sequence_file=None, sequence_file_format=None):
+        # Note to Erick, ref=False was unused, as was frag=False. They have
+        # been removed.
         """
         Create an alignment with hmmalign. Then, separate out reference sequences 
         from the fragments into two separate files. Note that mask=True forces 
@@ -141,12 +148,8 @@ class Alignment(object):
         # self.sequence_file.
         if not sequence_file:
             sequence_file = self.sequence_file
-
-        # Get first sequence length from an alignment.
-        aln_sto_length = self._get_sequence_length(self.aln_sto, 'stockholm')
-        #aln_fasta_length = self._get_sequence_length(self.aln_fasta, 'fasta')
-        aln_fasta_length = 13
-        
+        if not sequence_file_format:
+            sequence_file_format = self.sequence_file_format
 
         # hmmalign must be in PATH for this to work.
         hmmer_template = Template('hmmalign -o $together_aln' + ' --mapali ' + \
@@ -154,7 +157,6 @@ class Alignment(object):
         
         together_aln = self.out_prefix + '.align_out.sto'
         _,sequence_file_name = os.path.split(sequence_file)
-        sequence_file_name_prefix = string.join(list(os.path.splitext(sequence_file_name))[0:-1])
 
         hmmalign_command = hmmer_template.substitute(sequence_file=sequence_file,
                                                      aln_sto=self.aln_sto,
@@ -204,6 +206,7 @@ class Alignment(object):
             # finally:
             #     # Always remove the temporary alignment file
             #     os.remove(tmp_file)
+        if self.verbose: print 'Leaving hmmer_align()'
 
 
     def match_model(self):
@@ -211,7 +214,6 @@ class Alignment(object):
         Verify that the header contents look to be from a specific profile
         version.
         """
-        file_type = os.path.splitext(self.profile)[1]
         header = self._extract_header()
 
         is_match = False
@@ -225,9 +227,6 @@ class Alignment(object):
             is_match = bool(hmm_header.search(header))
 
         return is_match
-
-
-
 
 
     # Private methods
@@ -261,11 +260,11 @@ class Alignment(object):
         Generator function to filter out sequences by sequence length.
         """
         for record in records:
-	    nongaps = len(filter(lambda(s): s != "-", list(str(record.seq))))
-	    if nongaps >= min_length:
-		yield record
-	    else:
-	        print record.id + " is too short"  
+            nongaps = len(filter(lambda(s): s != "-", list(str(record.seq))))
+            if nongaps >= min_length:
+                yield record
+            else:
+                print record.id + " is too short"  
 
 
     def _extract_header(self):
@@ -277,7 +276,8 @@ class Alignment(object):
         # Only read in the first <line_count> lines to extract the header,
         # approximately.
         with open(self.profile, 'r') as model:
-            header = ''.join([model.readline() for i in range(line_count)])
+            header = ''.join(list(islice(model, line_count)))
+        
         return header
 
 
@@ -286,15 +286,16 @@ class Alignment(object):
     # the answer to me seems "no" but...
 
     def _mask_list(self, mask, to_mask):
-	"""
-	Mask a list!
-	"""
-	assert(len(mask) == len(to_mask))
-	masked = []
-	for i in range(len(mask)):
-	    if mask[i]:
-		masked.append(to_mask[i])
-	return(masked)
+        """
+        Mask a list!
+	    """
+        assert(len(mask) == len(to_mask))
+        masked = []
+        for i in range(len(mask)):
+            if mask[i]:
+                masked.append(to_mask[i])
+
+        return(masked)
 
 
     def _maskerator(self, mask, records):
@@ -320,15 +321,15 @@ class Alignment(object):
         return(map(int, mask_text.split(',')))
 
     def _mask_of_file(self, mask_file, length):
-	"""
-	Make a mask of a zero-indexed comma-delimited integer list in a file.
-	The included indices are turned to True in the mask.
-	Will fail if mask is out of range, and that's a good thing.
-	"""
-	mask = [False] * length
-	for i in self._int_list_of_file(mask_file):
-	    mask[i] = True
-	return(mask)
+        """
+        Make a mask of a zero-indexed comma-delimited integer list in a file.
+        The included indices are turned to True in the mask.
+        Will fail if mask is out of range, and that's a good thing.
+        """
+        mask = [False] * length
+        for i in self._int_list_of_file(mask_file):
+            mask[i] = True
+        return(mask)
 
     # End mask-related functions
 
@@ -361,27 +362,28 @@ class Alignment(object):
 
     # I wish biopython did this...
     def _consensus_list_of_sto(self, sto_aln):
-	"""
-	Return a boolean list indicating if the given column is consensus according to the GC RF line.
-	"""
-	rf_rex = re.compile("#=GC RF\s+([x.]*)")
-	rf_list = []
+        """
+        Return a boolean list indicating if the given column is consensus according to the GC RF line.
+        """
+        rf_rex = re.compile("#=GC RF\s+([x.]*)")
+        rf_list = []
 
-	def is_consensus(c):
-	    if c == 'x':
-		return(True)
-	    if c == '.':
-		return(False)
-	    assert(False)
+        def is_consensus(c):
+            if c == 'x':
+                return(True)
+            if c == '.':
+                return(False)
+            assert(False)
 
-	with open(sto_aln, 'r') as handle:
-	    for line in handle.readlines():
-		m = rf_rex.match(line)
-		if m:
-		    rf_list.append(m.group(1))
-            return(map(is_consensus, list("".join(rf_list))))
+        with open(sto_aln, 'r') as handle:
+            for line in handle.readlines():
+                m = rf_rex.match(line)
+                if m:
+                    rf_list.append(m.group(1))
+
+        return(map(is_consensus, list("".join(rf_list))))
 
 
-    # End consensus column related functions
+        # End consensus column related functions
 
 
