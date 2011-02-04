@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sys, os, argparse, re, contextlib
+import sys, os, argparse, re
 
 # Insert one level above project directory to path for testing.
 
@@ -53,6 +53,11 @@ def main():
     elif action == 'align' and 'hmmer' in align_args['profile_version']:
         # Create alignment with hmmer. 
         align.hmmer_align()
+
+    elif action == 'align' and 'infernal1' in align_args['profile_version']:
+        # Create alignment with hmmer. 
+        align.infernal_align()
+
 
     else:
         raise Exception, 'Not implemented exception raised. ' + \
@@ -127,7 +132,8 @@ def parse_arguments(action_arguments=None):
         subparser.add_argument('--min-length', dest='min_length', type=int, metavar='N', 
                             default=ALIGNMENT_DEFAULTS['min_length'],
                             help='Minimum sequence length. Defaults to ' + \
-                            str(ALIGNMENT_DEFAULTS['min_length']) + '.')
+                            str(ALIGNMENT_DEFAULTS['min_length']) + '.' + \
+                            ' Currently only works with the hmmer profile.')
         subparser.add_argument('--format', dest='sequence_file_format', 
                                default=ALIGNMENT_DEFAULTS['sequence_file_format'],
                                help='Specify format of seqfile.  Defaults ' + \

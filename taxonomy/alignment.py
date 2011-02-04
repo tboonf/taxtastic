@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import json, sys, os, string, subprocess, re
+import json, sys, os, subprocess, re
 from string import Template
 from Bio import SeqIO, AlignIO
 from Bio.Seq import Seq, SeqRecord
@@ -18,7 +18,8 @@ ALIGNMENT_DEFAULTS = {
                                              'infernal1mpi' : '',
                                            },
                         'alignment_options' : { 'hmmer3' : '--mapali $aln_sto', 
-                                                'infernal1' : '',   
+                                                'infernal1' : '-1 --hbanded \
+                                                --sub --dna',   
                                                 'infernal1mpi' : '',   
                                               },
                         'sequence_file_format' : 'fasta',
@@ -88,19 +89,19 @@ class Alignment(object):
         # initialize the masking
         if 'mask' in json_contents['files']:
             self.mask_file = os.path.join(self.reference_package, json_contents['files']['mask'])
+            sto_len = self._get_sequence_length(self.aln_sto, "stockholm")
+            self.trimal_mask = self._mask_of_file(self.mask_file, sto_len)
    
-        sto_len = self._get_sequence_length(self.aln_sto, "stockholm")
 
-        self.trimal_mask = self._mask_of_file(self.mask_file, sto_len)
-        # first make sure that the trimal mask only includes consensus columns according to HMMER
-        for pos in range(sto_len):
-            if self.trimal_mask[pos] & (not self.consensus_list[pos]):
-                print("trying to include a non-consensus column %d in the mask" % pos)
-                raise Exception, "trying to include a (non-consensus column " + \
-                                     str(pos) + " in the mask"
+            # first make sure that the trimal mask only includes consensus columns according to HMMER
+            for pos in range(sto_len):
+                if self.trimal_mask[pos] & (not self.consensus_list[pos]):
+                    print("trying to include a non-consensus column %d in the mask" % pos)
+                    raise Exception, "trying to include a (non-consensus column " + \
+                                         str(pos) + " in the mask"
 
-        # Now we make consensus_only_mask, which is the mask after we have taken just the consensus columns.
-        self.consensus_only_mask = self._mask_list(mask=self.consensus_list, to_mask=self.trimal_mask)
+            # Now we make consensus_only_mask, which is the mask after we have taken just the consensus columns.
+            self.consensus_only_mask = self._mask_list(mask=self.consensus_list, to_mask=self.trimal_mask)
 
 
             
@@ -129,10 +130,10 @@ class Alignment(object):
 
         # If return code was not 1, hmmsearch completed without errors.
         if not return_code:
+            if self.verbose: print 'Leaving hmmer_search()'
             return hmmsearch_output_file
         else:
             raise Exception, "hmmsearch command failed: \n\t" + hmmsearch_command
-        if self.verbose: print 'Leaving hmmer_search()'
 
 
     def hmmer_align(self, sequence_file=None, sequence_file_format=None):
@@ -210,6 +211,35 @@ class Alignment(object):
             #     # Always remove the temporary alignment file
             #     os.remove(tmp_file)
         if self.verbose: print 'Leaving hmmer_align()'
+
+
+    def infernal_align(self):
+        """
+        Given a profile and set of sequences to align, create an alignment
+        in stockholm format using cmalign.
+        """
+        # cmalign must be in PATH for this to work.
+        if self.verbose: print 'Entering infernal_align()'
+        cmalign_output_file = self.out_prefix + '.unmerged_out.sto'
+        cmalign_command = 'cmalign ' + self.alignment_options + \
+                            ' -o ' + cmalign_output_file + \
+                            ' ' + self.profile + ' ' + self.sequence_file
+
+        if self.debug: print "Command to execute: \n\t" + cmalign_command
+
+        child = subprocess.Popen(cmalign_command,
+                                 stdin=None,
+                                 stdout=None,
+                                 stderr=None,
+                                 shell=(sys.platform!="win32"))
+        return_code = child.wait()
+
+        # If return code was not 1, hmmsearch completed without errors.
+        if not return_code:
+            if self.verbose: print 'Leaving infernal_align()'
+            return cmalign_output_file
+        else:
+            raise Exception, "cmalign command failed: \n\t" + cmalign_command
 
 
     def match_model(self):
