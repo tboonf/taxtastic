@@ -18,8 +18,8 @@ ALIGNMENT_DEFAULTS = {
                                              'infernal1mpi' : '',
                                            },
                         'alignment_options' : { 'hmmer3' : '--mapali $aln_sto', 
-                                                'infernal1' : '-1 --hbanded \
-                                                --sub --dna',   
+                                                'infernal1' : '-1 --hbanded ' + \
+                                                '--sub --dna',   
                                                 'infernal1mpi' : '',   
                                               },
                         'sequence_file_format' : 'fasta',
@@ -215,11 +215,22 @@ class Alignment(object):
 
     def infernal_align(self):
         """
+        Method to wrap alignment of query sequences, merging of aligned 
+        query sequences and reference alignment and splitting of output.
+        """
+        if self.verbose: print 'Entering infernal_align()'
+        self.infernal_query_align()
+        self.infernal_merge()
+        if self.verbose: print 'Leaving infernal_align()'
+
+
+    def infernal_query_align(self):
+        """
         Given a profile and set of sequences to align, create an alignment
         in stockholm format using cmalign.
         """
         # cmalign must be in PATH for this to work.
-        if self.verbose: print 'Entering infernal_align()'
+        if self.verbose: print 'Entering infernal_query_align()'
         cmalign_output_file = self.out_prefix + '.unmerged_out.sto'
         cmalign_command = 'cmalign ' + self.alignment_options + \
                             ' -o ' + cmalign_output_file + \
@@ -236,10 +247,42 @@ class Alignment(object):
 
         # If return code was not 1, hmmsearch completed without errors.
         if not return_code:
-            if self.verbose: print 'Leaving infernal_align()'
+            if self.verbose: print 'Leaving infernal_query_align()'
             return cmalign_output_file
         else:
             raise Exception, "cmalign command failed: \n\t" + cmalign_command
+
+
+    def infernal_merge(self):
+        """
+        Merge reference alignment and aligned query sequences.
+        """
+        # cmalign must be in PATH for this to work.
+        if self.verbose: print 'Entering infernal_merge()'
+        query_merged_file = self.out_prefix + '.unmerged_out.sto'
+        cmalign_output_file = self.out_prefix + '.merged_out.sto'
+        # self.aln_sto
+        cmalign_command = 'cmalign --merge ' + self.alignment_options + \
+                            ' -o ' + cmalign_output_file + \
+                            ' ' + self.profile + ' ' + self.aln_sto + \
+                            ' ' + query_merged_file
+
+        if self.debug: print "Command to execute: \n\t" + cmalign_command
+
+        child = subprocess.Popen(cmalign_command,
+                                 stdin=None,
+                                 stdout=None,
+                                 stderr=None,
+                                 shell=(sys.platform!="win32"))
+        return_code = child.wait()
+
+        # If return code was not 1, hmmsearch completed without errors.
+        if not return_code:
+            if self.verbose: print 'Leaving infernal_merge()'
+            return cmalign_output_file
+        else:
+            raise Exception, "cmalign merge command failed: \n\t" + cmalign_command
+
 
 
     def match_model(self):
