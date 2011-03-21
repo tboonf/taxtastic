@@ -58,8 +58,8 @@ import hashlib
 
 log = logging
 
-import Taxonomy
-from Taxonomy.package import manifest_name, package_contents, write_config
+import taxonomy
+from taxonomy.package import manifest_name, package_contents, write_config
 
 class SimpleHelpFormatter(IndentedHelpFormatter):
     """Format help with indented section bodies.
@@ -210,8 +210,8 @@ def main():
         parser.print_help()
     else:
         try:
-            if hasattr(Taxonomy.package, action):
-                getattr(Taxonomy.package, action)(options)
+            if hasattr(taxonomy.package, action):
+                getattr(taxonomy.package, action)(options)
             else:
                 log.error('Sorry: the %s action is not yet implemented' % action)
                 sys.exit(1)
