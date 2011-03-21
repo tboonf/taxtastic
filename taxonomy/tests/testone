@@ -1,0 +1,10 @@
+#!/bin/bash
+
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "usage:" 
+    echo "./test.sh [-v] [module[.class[.method]]]"
+    exit 1
+fi
+
+python -m unittest $*
+
