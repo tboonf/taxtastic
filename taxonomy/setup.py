@@ -12,12 +12,12 @@ from __init__ import __version__
 params = {'author': 'Noah Hoffman',
           'author_email': 'ngh2@uw.edu',
           'description': 'Tools for taxonomic naming and annotation',
-          'name': 'Taxonomy',
-          'package_dir': {'Taxonomy': '.'},
-          'packages': ['Taxonomy'],
+          'name': 'taxonomy',
+          'package_dir': {'taxonomy': '.'},
+          'packages': ['taxonomy'],
           'scripts': glob.glob('scripts/*.py'),
           # 'package_data':{'taxonomy': glob.glob('data/*')},
-          'url': 'http://web.labmed.washington.edu/nhoffman',
+          'url': 'https://github.com/fhcrc/taxtastic',
           'version': __version__,
           'requires': ['Python (>= 2.6)', 'sqlalchemy']}
 
