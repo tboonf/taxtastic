@@ -4,11 +4,6 @@ import sys
 import os
 import unittest
 import logging
-import itertools
-import sqlite3
-import shutil
-import time
-import pprint
 
 from sqlalchemy import create_engine
 
@@ -28,7 +23,7 @@ echo = False
 startover = False
 zfile = taxonomy.ncbi.fetch_data(dest_dir=outputdir, new=startover)
 if startover or not os.path.isfile(dbname):
-    con = Taxonomy.ncbi.db_connect(dbname, new=True)
+    con = taxonomy.ncbi.db_connect(dbname, new=True)
     taxonomy.ncbi.db_load(con, zfile)
     con.close()
 

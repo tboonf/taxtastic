@@ -4,14 +4,9 @@ import sys
 import os
 import unittest
 import logging
-import itertools
-import sqlite3
-import shutil
-import time
-import pprint
 
 import config
-import Taxonomy
+import taxonomy
 
 log = logging
 
@@ -27,11 +22,11 @@ class TestDownload(unittest.TestCase):
         zfile = os.path.join(outputdir, 'taxdmp.zip')
         # os.remove(zfile)
 
-        archive = Taxonomy.ncbi.fetch_data(dest_dir=outputdir)
+        archive = taxonomy.ncbi.fetch_data(dest_dir=outputdir)
         self.assertTrue(os.path.isfile(archive))
         self.assertTrue(zfile == archive)
 
-        archive = Taxonomy.ncbi.fetch_data(dest_dir=outputdir)
+        archive = taxonomy.ncbi.fetch_data(dest_dir=outputdir)
 
 
 class TestCreateSchema(unittest.TestCase):
@@ -42,8 +37,12 @@ class TestCreateSchema(unittest.TestCase):
         log.info(self.dbname)
 
     def test01(self):
-        con = Taxonomy.ncbi.db_connect(self.dbname, new=True)
-
+        with taxonomy.ncbi.db_connect(self.dbname, new=True) as con:
+            cur = con.cursor()
+            cur.execute('select name from sqlite_master where type = "table"')
+            tables = set(i for j in cur.fetchall() for i in j) # flattened
+            self.assertTrue(set(['nodes','names','merged','source']).issubset(tables))
+        
 class TestLoadData(unittest.TestCase):
 
     def setUp(self):
@@ -52,13 +51,13 @@ class TestLoadData(unittest.TestCase):
         self.zfile = os.path.join(outputdir, 'taxdmp.zip')
 
     def test01(self):
-        con = Taxonomy.ncbi.db_connect(self.dbname, new=True)
-        Taxonomy.ncbi.db_load(con, self.zfile, maxrows=10)
+        con = taxonomy.ncbi.db_connect(self.dbname, new=True)
+        taxonomy.ncbi.db_load(con, self.zfile, maxrows=10)
         con.close()
 
     def test02(self):
-        con = Taxonomy.ncbi.db_connect(self.dbname, new=True)
-        Taxonomy.ncbi.db_load(con, self.zfile, maxrows=10)
+        con = taxonomy.ncbi.db_connect(self.dbname, new=True)
+        taxonomy.ncbi.db_load(con, self.zfile, maxrows=10)
         con.close()
 
 

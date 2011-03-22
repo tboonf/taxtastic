@@ -4,11 +4,7 @@ import sys
 import os
 import unittest
 import logging
-import itertools
-import sqlite3
 import shutil
-import time
-import pprint
 import commands
 
 import config

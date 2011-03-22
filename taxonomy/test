@@ -2,9 +2,9 @@
 
 if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo "usage:" 
-    echo "./test.sh [-v]"
+    echo "./test [-v]"
     exit 1
 fi
 
-python -m unittest discover $1 -p '*_test.py'
+python -m unittest discover $1 tests
 
