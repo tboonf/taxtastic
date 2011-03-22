@@ -11,6 +11,10 @@ import config
 import taxonomy
 from taxonomy import Taxonomy
 
+logging.basicConfig(file=sys.stdout,
+                    format='%(levelname)s %(module)s %(lineno)s %(message)s',
+                    loglevel=logging.DEBUG)
+
 log = logging
 
 module_name = os.path.split(sys.argv[0])[1].rstrip('.py')
@@ -24,6 +28,7 @@ startover = False
 zfile = taxonomy.ncbi.fetch_data(dest_dir=outputdir, new=startover)
 if startover or not os.path.isfile(dbname):
     con = taxonomy.ncbi.db_connect(dbname, new=True)
+    log.warning('loading %s' % dbname)
     taxonomy.ncbi.db_load(con, zfile)
     con.close()
 
@@ -147,6 +152,7 @@ class TestGetLineagePublic(unittest.TestCase):
 
     def test01(self):
         lineage = self.tax.lineage('1')
+
         self.assertTrue(lineage['root'] == '1')
         self.assertTrue(lineage['rank'] == 'root')
 

@@ -25,7 +25,6 @@ class TestWhereWeAre(unittest.TestCase):
         We're assuming that unit tests are being run using local
         version of the taxonomy package. Fail otherwise.
         """
-
-        print taxonomy.__file__
-        self.assertTrue('taxtastic/taxonomy/taxonomy/__init__' in taxonomy.__file__)
+        
+        self.assertTrue(taxonomy.__file__.startswith('taxonomy/__init__.py'))
                 
