@@ -40,7 +40,7 @@ Reference packages
 ==================
 
 The full reference package specification can be seen at
-http://github.com/nhoffman/taxtastic/wiki/refpkg.
+http://github.com/fhcrc/taxtastic/wiki/refpkg.
 
 """
 
