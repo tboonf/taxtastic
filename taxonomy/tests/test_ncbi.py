@@ -4,6 +4,7 @@ import sys
 import os
 import unittest
 import logging
+import shutil
 
 import config
 import taxonomy
@@ -14,21 +15,40 @@ module_name = os.path.split(sys.argv[0])[1].rstrip('.py')
 outputdir = os.path.abspath(config.outputdir)
 datadir = os.path.abspath(config.datadir)
 
-class TestDownload(unittest.TestCase):
+def newdir(path):
+    """
+    Create a new directory "path", deleting an existing directory if
+    necessary.
+    """
+
+    shutil.rmtree(path, ignore_errors = True)
+    os.makedirs(path)
+    
+class TestFetchData(unittest.TestCase):
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
-
+        self.outdir = os.path.join(outputdir, self.funcname)
+        newdir(self.outdir)
+        _, self.zfilename = os.path.split(taxonomy.ncbi.ncbi_data_url)
+        
     def test01(self):
-        zfile = os.path.join(outputdir, 'taxdmp.zip')
-        # os.remove(zfile)
+        zfile = os.path.join(self.outdir, self.zfilename)        
+        fout, downloaded = taxonomy.ncbi.fetch_data(dest_dir=self.outdir)
 
-        archive = taxonomy.ncbi.fetch_data(dest_dir=outputdir)
-        self.assertTrue(os.path.isfile(archive))
-        self.assertTrue(zfile == archive)
+        # file is downloaded the first time
+        self.assertTrue(downloaded)
+        self.assertTrue(os.path.isfile(fout))
+        self.assertTrue(zfile == fout)
 
-        archive = taxonomy.ncbi.fetch_data(dest_dir=outputdir)
+        # ... but not the second time
+        fout, downloaded = taxonomy.ncbi.fetch_data(dest_dir=self.outdir)
+        self.assertFalse(downloaded)
 
+        # ... unless clobber = True
+        fout, downloaded = taxonomy.ncbi.fetch_data(dest_dir=self.outdir, clobber=True)
+        self.assertTrue(downloaded)
 
+        
 class TestCreateSchema(unittest.TestCase):
 
     def setUp(self):

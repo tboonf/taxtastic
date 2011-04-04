@@ -167,16 +167,19 @@ def do_insert(con, tablename, rows, maxrows=None):
     cur.executemany(cmd, rows)
     con.commit()
 
-def fetch_data(dest_dir='.', new=False, url=ncbi_data_url):
+def fetch_data(dest_dir='.', clobber=False, url=ncbi_data_url):
 
     """
-    Download data from NCBI required to generate local
-    taxonomy database. Default url is ncbi.ncbi_data_url
-    Returns path to the downloaded zip archive.
+    Download data from NCBI required to generate local taxonomy
+    database. Default url is ncbi.ncbi_data_url
 
     * dest_dir - directory in which to save output files (created if necessary).
-    * expand - list of components in archive to expand.
-    * new - replace existing files if True
+    * clobber - don't download if False and target of url exists in dest_dir
+    * url - url to archive; default is ncbi.ncbi_data_url
+    
+    Returns (fname, downloaded), where fname is the name of the
+    downloaded zip archive, and downloaded is True if a new files was
+    downloaded, false otherwise.
 
     see ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump_readme.txt
     """
@@ -189,22 +192,25 @@ def fetch_data(dest_dir='.', new=False, url=ncbi_data_url):
 
     fout = os.path.join(dest_dir, os.path.split(url)[-1])
 
-    if os.access(fout, os.F_OK) and not new:
+    if os.access(fout, os.F_OK) and not clobber:
+        downloaded = False
         log.warning('%s exists; not downloading' % fout)
     else:
-        # get the file
+        downloaded = True
         log.warning('downloading %(url)s to %(fout)s' % locals())
         urllib.urlretrieve(url, fout)
-
+        
     zfile = zipfile.ZipFile(fout, 'r')
     log.info('contents of %s: \n%s' % (fout, pprint.pformat(zfile.namelist()) ))
 
     # expand the readme file
+    # TODO - these file names probably shouldn't be hard-coded
     destfile = os.path.join(dest_dir, 'taxdump_readme.txt')
     with open(destfile,'wb') as f:
         f.write(zfile.read('readme.txt'))
 
-    return fout
+    zfile.close()
+    return (fout, downloaded)
 
 def read_archive(archive, fname):
     """
