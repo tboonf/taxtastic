@@ -25,9 +25,9 @@ dbname = os.path.join(outputdir, 'taxtable_test.db')
 echo = False
 
 startover = False
-zfile = taxonomy.ncbi.fetch_data(dest_dir=outputdir, new=startover)
+zfile = taxonomy.ncbi.fetch_data(dest_dir=outputdir, clobber = startover)
 if startover or not os.path.isfile(dbname):
-    con = taxonomy.ncbi.db_connect(dbname, new=True)
+    con = taxonomy.ncbi.db_connect(dbname, clobber = True)
     log.warning('loading %s' % dbname)
     taxonomy.ncbi.db_load(con, zfile)
     con.close()

@@ -5,9 +5,11 @@ import os
 import unittest
 import logging
 import shutil
+import sqlite3
 
 import config
 import taxonomy
+from taxonomy.errors import OperationalError, IntegrityError
 
 log = logging
 
@@ -49,7 +51,7 @@ class TestFetchData(unittest.TestCase):
         self.assertTrue(downloaded)
 
         
-class TestCreateSchema(unittest.TestCase):
+class TestDbconnect(unittest.TestCase):
 
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
@@ -57,28 +59,49 @@ class TestCreateSchema(unittest.TestCase):
         log.info(self.dbname)
 
     def test01(self):
-        with taxonomy.ncbi.db_connect(self.dbname, new=True) as con:
+        with taxonomy.ncbi.db_connect(self.dbname, clobber = True) as con:
             cur = con.cursor()
             cur.execute('select name from sqlite_master where type = "table"')
             tables = set(i for j in cur.fetchall() for i in j) # flattened
             self.assertTrue(set(['nodes','names','merged','source']).issubset(tables))
+
+        # connection object is returned is schema already exists
+        con = taxonomy.ncbi.db_connect(self.dbname, clobber = False)
         
 class TestLoadData(unittest.TestCase):
 
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
-        self.dbname = os.path.join(outputdir, self.funcname + '.db')
         self.zfile = os.path.join(outputdir, 'taxdmp.zip')
-
+        # reuse this after the first download
+        _ , downloaded = taxonomy.ncbi.fetch_data(dest_dir = outputdir)
+        self.dbname = os.path.join(outputdir, self.funcname + '.db')
+        try:
+            os.remove(self.dbname)
+        except OSError:
+            pass
+        
     def test01(self):
-        con = taxonomy.ncbi.db_connect(self.dbname, new=True)
-        taxonomy.ncbi.db_load(con, self.zfile, maxrows=10)
-        con.close()
+        maxrows = 10
+        with taxonomy.ncbi.db_connect(self.dbname, clobber = False) as con:
+            taxonomy.ncbi.db_load(con, self.zfile, maxrows = maxrows)
+            cur = con.cursor()
+            cur.execute('select * from names')
+            self.assertTrue(len(list(cur.fetchall())) == maxrows)
+            
+        with taxonomy.ncbi.db_connect(self.dbname, clobber = True) as con:
+            taxonomy.ncbi.db_load(con, self.zfile, maxrows = 10)
+            cur = con.cursor()
+            cur.execute('select * from names')
+            self.assertTrue(len(list(cur.fetchall())) == maxrows)
 
-    def test02(self):
-        con = taxonomy.ncbi.db_connect(self.dbname, new=True)
-        taxonomy.ncbi.db_load(con, self.zfile, maxrows=10)
-        con.close()
+            # re-inserting same data is an error
+            self.assertRaises(IntegrityError, taxonomy.ncbi.db_load, con, self.zfile, maxrows = 10)
+                                    
+    # def test02(self):
+    #     with taxonomy.ncbi.db_connect(self.dbname, clobber = True) as con:
+    #         taxonomy.ncbi.db_load(con, self.zfile)
+
 
 
 
