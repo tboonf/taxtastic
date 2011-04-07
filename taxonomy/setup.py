@@ -19,7 +19,7 @@ params = {'author': 'Noah Hoffman',
           # 'package_data':{'taxonomy': glob.glob('data/*')},
           'url': 'http://web.labmed.washington.edu/nhoffman',
           'version': __version__,
-          'requires': ['Python (>= 2.6)', 'sqlalchemy']}
+          'requires': ['Python (>= 2.7)', 'sqlalchemy']}
 
 setup(**params)
 
