@@ -10,6 +10,8 @@ import os
 import urllib
 import zipfile
 
+from errors import OperationalError, IntegrityError
+
 log = logging
 
 ncbi_data_url = 'ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip'
@@ -107,49 +109,57 @@ forma
 
 ranks = [k.strip().replace(' ','_') for k in _ranks.splitlines() if k.strip()]
 
-def db_connect(dbname='ncbi_taxonomy.db', schema=db_schema, new=False):
+def db_connect(dbname='ncbi_taxonomy.db', schema=db_schema, clobber = False):
 
-    if new:
+    """
+    Create a connection object to a database. Attempt to establish a
+    schema. If there are existing tables, delete them if clobber is
+    True and return otherwise. Returns a connection object.
+    """
+
+    if clobber:
         log.info('Creating new database %s' % dbname)
         try:
             os.remove(dbname)
         except OSError:
             pass
-
+        
     con = sqlite3.connect(dbname)
     cur = con.cursor()
 
     cmds = [cmd.strip() for cmd in schema.split(';') if cmd.strip()]
-    for cmd in cmds:
-        log.info(cmd)
-        cur.execute(cmd)
-
-        # try:
-
-        # except sqlite3.OperationalError:
-        #     break
-
+    try:
+        for cmd in cmds:
+            log.info(cmd)
+            cur.execute(cmd)
+    except sqlite3.OperationalError as err:
+        log.info(err)
+        
     return con
 
 def db_load(con, archive, root_name='root', maxrows=None):
 
-    # nodes
-    rows = read_nodes(
-        rows=read_archive(archive, 'nodes.dmp'),
-        root_name=root_name,
-        ncbi_source_id=1)
-    do_insert(con, 'nodes', rows, maxrows)
+    try:
+    
+        # nodes
+        rows = read_nodes(
+            rows=read_archive(archive, 'nodes.dmp'),
+            root_name=root_name,
+            ncbi_source_id=1)
+        do_insert(con, 'nodes', rows, maxrows)
 
-    # names
-    rows = read_names(
-        rows=read_archive(archive, 'names.dmp')
-        )
-    do_insert(con, 'names', rows, maxrows)
+        # names
+        rows = read_names(
+            rows=read_archive(archive, 'names.dmp')
+            )
+        do_insert(con, 'names', rows, maxrows)
 
-    # merged
-    rows = read_archive(archive, 'merged.dmp')
-    do_insert(con, 'merged', rows, maxrows)
-
+        # merged
+        rows = read_archive(archive, 'merged.dmp')
+        do_insert(con, 'merged', rows, maxrows)
+    except sqlite3.IntegrityError, err:
+        raise IntegrityError(err)
+        
 def do_insert(con, tablename, rows, maxrows=None):
 
     cur = con.cursor()
@@ -167,16 +177,19 @@ def do_insert(con, tablename, rows, maxrows=None):
     cur.executemany(cmd, rows)
     con.commit()
 
-def fetch_data(dest_dir='.', new=False, url=ncbi_data_url):
+def fetch_data(dest_dir='.', clobber=False, url=ncbi_data_url):
 
     """
-    Download data from NCBI required to generate local
-    taxonomy database. Default url is ncbi.ncbi_data_url
-    Returns path to the downloaded zip archive.
+    Download data from NCBI required to generate local taxonomy
+    database. Default url is ncbi.ncbi_data_url
 
     * dest_dir - directory in which to save output files (created if necessary).
-    * expand - list of components in archive to expand.
-    * new - replace existing files if True
+    * clobber - don't download if False and target of url exists in dest_dir
+    * url - url to archive; default is ncbi.ncbi_data_url
+    
+    Returns (fname, downloaded), where fname is the name of the
+    downloaded zip archive, and downloaded is True if a new files was
+    downloaded, false otherwise.
 
     see ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump_readme.txt
     """
@@ -189,22 +202,25 @@ def fetch_data(dest_dir='.', new=False, url=ncbi_data_url):
 
     fout = os.path.join(dest_dir, os.path.split(url)[-1])
 
-    if os.access(fout, os.F_OK) and not new:
+    if os.access(fout, os.F_OK) and not clobber:
+        downloaded = False
         log.warning('%s exists; not downloading' % fout)
     else:
-        # get the file
+        downloaded = True
         log.warning('downloading %(url)s to %(fout)s' % locals())
         urllib.urlretrieve(url, fout)
-
+        
     zfile = zipfile.ZipFile(fout, 'r')
     log.info('contents of %s: \n%s' % (fout, pprint.pformat(zfile.namelist()) ))
 
     # expand the readme file
+    # TODO - these file names probably shouldn't be hard-coded
     destfile = os.path.join(dest_dir, 'taxdump_readme.txt')
     with open(destfile,'wb') as f:
         f.write(zfile.read('readme.txt'))
 
-    return fout
+    zfile.close()
+    return (fout, downloaded)
 
 def read_archive(archive, fname):
     """

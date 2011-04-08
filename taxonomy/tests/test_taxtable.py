@@ -4,16 +4,16 @@ import sys
 import os
 import unittest
 import logging
-import itertools
-import sqlite3
-import shutil
-import time
-import pprint
 
 from sqlalchemy import create_engine
 
 import config
-import Taxonomy
+import taxonomy
+from taxonomy import Taxonomy
+
+logging.basicConfig(file=sys.stdout,
+                    format='%(levelname)s %(module)s %(lineno)s %(message)s',
+                    loglevel=logging.DEBUG)
 
 log = logging
 
@@ -25,10 +25,11 @@ dbname = os.path.join(outputdir, 'taxtable_test.db')
 echo = False
 
 startover = False
-zfile = Taxonomy.ncbi.fetch_data(dest_dir=outputdir, new=startover)
+zfile = taxonomy.ncbi.fetch_data(dest_dir=outputdir, clobber = startover)
 if startover or not os.path.isfile(dbname):
-    con = Taxonomy.ncbi.db_connect(dbname, new=True)
-    Taxonomy.ncbi.db_load(con, zfile)
+    con = taxonomy.ncbi.db_connect(dbname, clobber = True)
+    log.warning('loading %s' % dbname)
+    taxonomy.ncbi.db_load(con, zfile)
     con.close()
 
 class TestTaxonomyInit(unittest.TestCase):
@@ -36,7 +37,7 @@ class TestTaxonomyInit(unittest.TestCase):
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
-        self.tax = Taxonomy.Taxonomy(self.engine, Taxonomy.ncbi.ranks)
+        self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
     def tearDown(self):
         self.engine.dispose()
@@ -52,7 +53,7 @@ class TestGetLineagePrivate(unittest.TestCase):
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
-        self.tax = Taxonomy.Taxonomy(self.engine, Taxonomy.ncbi.ranks)
+        self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
     def tearDown(self):
         self.engine.dispose()
@@ -81,7 +82,7 @@ class TestGetMerged(unittest.TestCase):
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
-        self.tax = Taxonomy.Taxonomy(self.engine, Taxonomy.ncbi.ranks)
+        self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
     def tearDown(self):
         self.engine.dispose()
@@ -101,7 +102,7 @@ class TestTaxNameSearch(unittest.TestCase):
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo) # echo=echo
-        self.tax = Taxonomy.Taxonomy(self.engine, Taxonomy.ncbi.ranks)
+        self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
     def tearDown(self):
         self.engine.dispose()
@@ -126,7 +127,7 @@ class TestSynonyms(unittest.TestCase):
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo) # echo=echo
-        self.tax = Taxonomy.Taxonomy(self.engine, Taxonomy.ncbi.ranks)
+        self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
     def tearDown(self):
         self.engine.dispose()
@@ -144,13 +145,14 @@ class TestGetLineagePublic(unittest.TestCase):
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
-        self.tax = Taxonomy.Taxonomy(self.engine, Taxonomy.ncbi.ranks)
+        self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
     def tearDown(self):
         self.engine.dispose()
 
     def test01(self):
         lineage = self.tax.lineage('1')
+
         self.assertTrue(lineage['root'] == '1')
         self.assertTrue(lineage['rank'] == 'root')
 
@@ -189,19 +191,19 @@ class TestGetLineagePublic(unittest.TestCase):
         # lineage = self.tax.lineage(tax_id)
         # self.assertTrue(lineage['rank'] == 'genus')
 
-    def test07(self):
-        tax_id = '30630' # deprecated; Microtus levis Taxonomy ID: 537919
-        lineage = self.tax.lineage(tax_id=tax_id)
+    # def test07(self):
+    #     ## TODO: handle deprecated tax_ids
 
-
-
+    #     tax_id = '30630' # deprecated; Microtus levis Taxonomy ID: 537919
+    #     lineage = self.tax.lineage(tax_id=tax_id)
+        
         
 class TestTaxTable(unittest.TestCase):
 
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
-        self.tax = Taxonomy.Taxonomy(self.engine, Taxonomy.ncbi.ranks)
+        self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
         self.fname = os.path.join(outputdir, self.funcname)+'.csv'
         log.info('writing to ' + self.fname)
 
@@ -237,7 +239,7 @@ class TestMethods(unittest.TestCase):
     def setUp(self):
         self.funcname = '_'.join(self.id().split('.')[-2:])
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
-        self.tax = Taxonomy.Taxonomy(self.engine, Taxonomy.ncbi.ranks)
+        self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
     def tearDown(self):
         self.engine.dispose()
