@@ -163,9 +163,9 @@ class Taxonomy(object):
         lineage = self.cached.get(tax_id)
 
         if lineage:
-            log.info('%(indent)s tax_id "%(tax_id)s" is cached' % locals())
+            log.debug('%(indent)s tax_id "%(tax_id)s" is cached' % locals())
         else:
-            log.info('%(indent)s reconstructing lineage of tax_id "%(tax_id)s"' % locals())
+            log.debug('%(indent)s reconstructing lineage of tax_id "%(tax_id)s"' % locals())
             parent_id, rank = self._node(tax_id)
             lineage = [(rank, tax_id)]
 

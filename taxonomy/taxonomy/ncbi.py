@@ -130,8 +130,8 @@ def db_connect(dbname='ncbi_taxonomy.db', schema=db_schema, clobber = False):
     cmds = [cmd.strip() for cmd in schema.split(';') if cmd.strip()]
     try:
         for cmd in cmds:
-            log.info(cmd)
             cur.execute(cmd)
+            log.debug(cmd)
     except sqlite3.OperationalError as err:
         log.info(err)
         
@@ -139,31 +139,43 @@ def db_connect(dbname='ncbi_taxonomy.db', schema=db_schema, clobber = False):
 
 def db_load(con, archive, root_name='root', maxrows=None):
 
-    try:
-    
+    try:    
         # nodes
         rows = read_nodes(
             rows=read_archive(archive, 'nodes.dmp'),
             root_name=root_name,
             ncbi_source_id=1)
-        do_insert(con, 'nodes', rows, maxrows)
+        do_insert(con, 'nodes', rows, maxrows, add = False)
 
         # names
         rows = read_names(
             rows=read_archive(archive, 'names.dmp')
             )
-        do_insert(con, 'names', rows, maxrows)
+        do_insert(con, 'names', rows, maxrows, add = False)
 
         # merged
         rows = read_archive(archive, 'merged.dmp')
-        do_insert(con, 'merged', rows, maxrows)
+        do_insert(con, 'merged', rows, maxrows, add = False)
+
     except sqlite3.IntegrityError, err:
         raise IntegrityError(err)
         
-def do_insert(con, tablename, rows, maxrows=None):
+def do_insert(con, tablename, rows, maxrows=None, add = True):
 
+    """
+    Insert rows into a table. Do not perform the insert if
+    add is False and table already contains data.
+    """
+    
     cur = con.cursor()
 
+    cur.execute('select count(*) from "%s" where rowid < 2' % tablename)
+    has_data = cur.fetchone()[0]
+
+    if not add and has_data:
+        log.info('Table "%s" already contains data; load not performed.' % tablename)
+        return False
+        
     # pop first row to determine number of columns
     row = rows.next()
     cmd = 'INSERT INTO "%s" VALUES (%s)' % (tablename, ', '.join(['?']*len(row)))
@@ -176,6 +188,8 @@ def do_insert(con, tablename, rows, maxrows=None):
 
     cur.executemany(cmd, rows)
     con.commit()
+
+    return True
 
 def fetch_data(dest_dir='.', clobber=False, url=ncbi_data_url):
 
@@ -211,7 +225,7 @@ def fetch_data(dest_dir='.', clobber=False, url=ncbi_data_url):
         urllib.urlretrieve(url, fout)
         
     zfile = zipfile.ZipFile(fout, 'r')
-    log.info('contents of %s: \n%s' % (fout, pprint.pformat(zfile.namelist()) ))
+    log.debug('contents of %s: \n%s' % (fout, pprint.pformat(zfile.namelist()) ))
 
     # expand the readme file
     # TODO - these file names probably shouldn't be hard-coded

@@ -2,40 +2,46 @@
 
 import sys
 import os
+from os import path
 import unittest
 import logging
 
 from sqlalchemy import create_engine
 
 import config
+from config import funcname, mkdir, rmdir
+
 import taxonomy
 from taxonomy import Taxonomy
 
-logging.basicConfig(file=sys.stdout,
-                    format='%(levelname)s %(module)s %(lineno)s %(message)s',
-                    loglevel=logging.DEBUG)
-
 log = logging
 
-module_name = os.path.split(sys.argv[0])[1].rstrip('.py')
-outputdir = os.path.abspath(config.outputdir)
-datadir = os.path.abspath(config.datadir)
+def create_db(outputdir, startover):
+    
+    # download if missing or startover is True
+    zfile, downloaded = taxonomy.ncbi.fetch_data(dest_dir = outputdir, clobber = startover)
+    dbname = path.join(outputdir, 'taxonomy.db')
 
-dbname = os.path.join(outputdir, 'taxtable_test.db')
-echo = False
-
-startover = False
-zfile = taxonomy.ncbi.fetch_data(dest_dir=outputdir, clobber = startover)
-if startover or not os.path.isfile(dbname):
-    con = taxonomy.ncbi.db_connect(dbname, clobber = True)
+    # read existing databse unless startover if True
+    con = taxonomy.ncbi.db_connect(dbname, clobber = startover)
     log.warning('loading %s' % dbname)
     taxonomy.ncbi.db_load(con, zfile)
     con.close()
+        
+    return zfile, dbname
+
+module = path.split(path.splitext(__file__)[0])[1]
+outputdir = mkdir(path.join(config.outputdir, module))
+datadir = config.datadir
+
+echo = False
+
+zfile, dbname = create_db(outputdir, startover = False)
 
 class TestTaxonomyInit(unittest.TestCase):
 
     def setUp(self):
-        self.funcname = '_'.join(self.id().split('.')[-2:])
+        self.funcname = funcname(self.id())
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
         self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
@@ -51,7 +57,7 @@ class TestTaxonomyInit(unittest.TestCase):
 class TestGetLineagePrivate(unittest.TestCase):
 
     def setUp(self):
-        self.funcname = '_'.join(self.id().split('.')[-2:])
+        self.funcname = funcname(self.id())
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
         self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
@@ -80,7 +86,7 @@ class TestGetLineagePrivate(unittest.TestCase):
 class TestGetMerged(unittest.TestCase):
 
     def setUp(self):
-        self.funcname = '_'.join(self.id().split('.')[-2:])
+        self.funcname = funcname(self.id())
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
         self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
@@ -100,7 +106,7 @@ class TestGetMerged(unittest.TestCase):
 class TestTaxNameSearch(unittest.TestCase):
 
     def setUp(self):
-        self.funcname = '_'.join(self.id().split('.')[-2:])
+        self.funcname = funcname(self.id())
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo) # echo=echo
         self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
@@ -125,7 +131,7 @@ class TestTaxNameSearch(unittest.TestCase):
 class TestSynonyms(unittest.TestCase):
 
     def setUp(self):
-        self.funcname = '_'.join(self.id().split('.')[-2:])
+        self.funcname = funcname(self.id())
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo) # echo=echo
         self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
@@ -143,7 +149,7 @@ class TestSynonyms(unittest.TestCase):
 class TestGetLineagePublic(unittest.TestCase):
 
     def setUp(self):
-        self.funcname = '_'.join(self.id().split('.')[-2:])
+        self.funcname = funcname(self.id())
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
         self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
@@ -201,7 +207,7 @@ class TestGetLineagePublic(unittest.TestCase):
 class TestTaxTable(unittest.TestCase):
 
     def setUp(self):
-        self.funcname = '_'.join(self.id().split('.')[-2:])
+        self.funcname = funcname(self.id())
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
         self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
         self.fname = os.path.join(outputdir, self.funcname)+'.csv'
@@ -237,7 +243,7 @@ class TestTaxTable(unittest.TestCase):
 class TestMethods(unittest.TestCase):
 
     def setUp(self):
-        self.funcname = '_'.join(self.id().split('.')[-2:])
+        self.funcname = funcname(self.id())
         self.engine = create_engine('sqlite:///%s' % dbname, echo=echo)
         self.tax = Taxonomy(self.engine, taxonomy.ncbi.ranks)
 
