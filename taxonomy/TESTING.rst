@@ -45,5 +45,13 @@ hierarchy in the tests directory::
 
   OK
 
-Note that (as in the above example) scripts are tested as well. Output
-of unit tests are written to ./test_output.
+Output of unit tests are written to ./test_output.
+
+unit tests for scripts
+======================
+
+Note that (as in the above example) scripts are tested as well. A base
+class inheriting from unittest.TestBase is defined in
+tests/config.py - see the docstring and existing unit tests for
+instructions and examples.
+

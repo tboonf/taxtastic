@@ -10,50 +10,17 @@ import commands
 import re
 
 import config
+from config import TestScriptBase, rmdir
 
 log = logging
 
-_, module = path.split(__file__.replace('.py',''))
 outputdir = path.abspath(config.outputdir)
 datadir = path.abspath(config.datadir)
 
-class TestBase(unittest.TestCase):
-
-    executable = './taxtest.py'
-
-    def __getitem__(self, i):
-        """
-        Enables string formatting, eg:
-        print 'current function: %(funcname)s' % self
-        """
-        return getattr(self, i)
-
-    def wrap_cmd(self, args = None, cmd = None):
-        if cmd is None:
-            cmd = self.executable
-        input = (cmd + ' ' + args) % self
-        log.warning('--> '+ input)
-        status, output = commands.getstatusoutput(input)
-        log.info(output)
-        return status, output
-
-    def cmd_ok(self, cmd=None, args=None):
-        status, output = self.wrap_cmd(cmd, args)
-        self.assertTrue(status == 0)
-
-    def cmd_fails(self, cmd=None, args=None):
-        status, output = self.wrap_cmd(cmd, args)
-        self.assertFalse(status == 0)
-
-    def setUp(self):
-        self.funcname = '.'.join(self.id().split('.')[1:])
-        self.outputdir = config.outputdir
-        self.package = path.join(self.outputdir, self.funcname)
-
-    def tearDown(self):
-        pass
-
-class TestHelp(TestBase):
+TestScriptBase.executable = './taxtest.py'
+TestScriptBase.outputdir = outputdir
+        
+class TestHelp(TestScriptBase):
 
     def test01(self):
         self.cmd_ok('-h')
@@ -83,7 +50,7 @@ class TestHelp(TestBase):
         self.cmd_ok('--version')
         
         
-class TestCreate(TestBase):
+class TestCreate(TestScriptBase):
 
     def test01(self):
         self.cmd_fails('create -P %(package)s')
@@ -93,7 +60,7 @@ class TestCreate(TestBase):
         Create a minimal package.
         """
         
-        shutil.rmtree(self.package)
+        rmdir(self.package)
         self.cmd_ok('create -P %(package)s -l 16s')
         self.assertTrue(path.exists(self.package))
         self.assertTrue(path.exists(path.join(self.package,'CONTENTS.json')))

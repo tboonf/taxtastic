@@ -95,9 +95,17 @@ class TestLoadData(unittest.TestCase):
             cur.execute('select * from names')
             self.assertTrue(len(list(cur.fetchall())) == maxrows)
 
-            # re-inserting same data is an error
-            self.assertRaises(IntegrityError, taxonomy.ncbi.db_load, con, self.zfile, maxrows = 10)
-                                    
+            # shouldn't be able to load data a second time, so number
+            # of rows should not change
+            taxonomy.ncbi.db_load(
+                con = con,
+                archive = self.zfile,
+                maxrows = 10)
+            cur.execute('select * from names')
+            self.assertTrue(len(list(cur.fetchall())) == maxrows)
+
+
+            
     # def test02(self):
     #     with taxonomy.ncbi.db_connect(self.dbname, clobber = True) as con:
     #         taxonomy.ncbi.db_load(con, self.zfile)
