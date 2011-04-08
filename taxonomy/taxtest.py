@@ -26,8 +26,8 @@ check
 import argparse
 import sys
 import logging
-from Taxonomy.package import manifest_name, package_contents, write_config
-from Taxonomy import __version__
+from taxonomy.package import manifest_name, package_contents, write_config
+from taxonomy import __version__ as version
 
 log = logging
 PROG = 'taxtest.py'
@@ -48,7 +48,7 @@ def parse_arguments(action_arguments=None):
     parser = argparse.ArgumentParser(description=DESCRIPTION, prog=PROG)
 
     parser.add_argument('-V', '--version', action='version',
-            version='%(prog)s v' + __version__,
+            version='%(prog)s v' + version,
             help='Print the version number and exit')
 
     ##########################

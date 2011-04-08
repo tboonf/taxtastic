@@ -58,15 +58,9 @@ import hashlib
 
 log = logging
 
-<<<<<<< HEAD:taxonomy/scripts/taxomatic.py
-import Taxonomy
-from Taxonomy.package import manifest_name, package_contents, write_config
-from Taxonomy import __version__
-
-=======
 import taxonomy
 from taxonomy.package import manifest_name, package_contents, write_config
->>>>>>> remotes/origin/dev:taxonomy/taxomatic.py
+from taxonomy import __version__ as version
 
 class SimpleHelpFormatter(IndentedHelpFormatter):
     """Format help with indented section bodies.
@@ -125,7 +119,7 @@ def main():
         sys.exit(1)
 
     parser = OptionParser(usage='',
-                          version=__version__,
+                          version=version,
                           formatter=SimpleHelpFormatter())
 
     parser.set_defaults(
