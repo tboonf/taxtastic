@@ -9,28 +9,17 @@ Usage: %prog action <options>
 Creation, validation, and modification of reference packages for use
 with `pplacer` and related software.
 
-Actions
-=======
-
 Use `taxomatic.py -h` or `taxomatic.py --help` to print help text.
-
-help
-  Print detailed help for an action below using `taxomatic.py help <action>`
-create
-  Create a reference package
-check
-  Verify that reference package is intact and valid.
-
 """
 
 import argparse
 import sys
+import os
 import logging
-from taxonomy.package import manifest_name, package_contents, write_config
-from taxonomy import __version__ as version
+from taxonomy import package, __version__ as version
 
 log = logging
-PROG = 'taxtest.py'
+PROG = os.path.basename(__file__)
 DESCRIPTION = 'To Be Named -- Creation, validation, and modification of ' + \
               'reference packages for use with `pplacer` and related software.'
 
@@ -38,7 +27,31 @@ def main():
     """
     """
     action, arguments = parse_arguments()
-    verbose = arguments.verbose
+
+    loglevel = {
+        0:logging.WARNING,
+        1:logging.INFO,
+        2:logging.DEBUG
+        }.get(arguments.verbose, logging.DEBUG)
+
+    verbose_format = '%(levelname)s %(module)s %(lineno)s %(message)s'
+
+    logformat = {0:'%(message)s',
+        1:verbose_format,
+        2:verbose_format}.get(arguments.verbose, verbose_format)
+
+    # set up logging
+    logging.basicConfig(file=sys.stdout, format=logformat, level=loglevel)
+
+    try:
+        if hasattr(package, action):
+            getattr(package, action)(arguments)
+        else:
+            log.error('Sorry: the %s action is not yet implemented' % action)
+            sys.exit(1)
+    except OSError:
+        log.error('A package named "%s" already exists' % arguments.package_name)
+        sys.exit(2)
 
 
 def parse_arguments(action_arguments=None):
@@ -67,6 +80,14 @@ def parse_arguments(action_arguments=None):
     parser_create = subparsers.add_parser('create', 
         help='Create a reference package')
 
+    parser_create.add_argument("-a", "--author",
+        action="store", dest="author",
+        help='Person who created the reference package', metavar='NAME')
+
+    parser_create.add_argument("-d", "--description",
+        action="store", dest="description",
+        help='An arbitrary description field', metavar='TEXT')
+
     parser_create.add_argument("-f", "--aln-fasta",
         action="store", dest="aln_fasta",
         help='Multiple alignment in fasta format', metavar='FILE')
@@ -77,9 +98,13 @@ def parse_arguments(action_arguments=None):
              'sequences, minimally containing the fields "seqname" ' + \
              'and "tax_id"', metavar='FILE')
 
+    parser_create.add_argument("-l", "--locus",
+        action="store", dest="locus", required=True,
+        help='The locus described by the reference package', metavar='LOCUS')
+
     parser_create.add_argument("-m", "--mask",
         action="store", dest="mask",
-        help='Text file containing a mask.', metavar='FILE')
+        help='Text file containing a mask', metavar='FILE')
 
     parser_create.add_argument("-p", "--profile",
         action="store", dest="profile",
@@ -97,11 +122,11 @@ def parse_arguments(action_arguments=None):
     parser_create.add_argument("-s", "--tree-stats",
         action="store", dest="tree_stats",
         help='File containing tree statistics (for example ' + \
-             'RAxML_info.whatever").', metavar='FILE')
+             'RAxML_info.whatever")', metavar='FILE')
 
     parser_create.add_argument("-S", "--aln-sto",
         action="store", dest="aln_sto",
-        help='Multiple alignment in Stockholm format.', metavar='FILE')
+        help='Multiple alignment in Stockholm format', metavar='FILE')
 
     parser_create.add_argument("-t", "--tree-file",
         action="store", dest="tree_file",
@@ -126,7 +151,7 @@ def parse_arguments(action_arguments=None):
     # End check sub-command
 
     # Begin taxtable sub-command
-    # TODO: Merged from taxtable.py and move from optparse to argparse.
+    # TODO: Merge in code from taxtable.py and move from optparse to argparse.
     # End taxtable sub-command
 
     # With the exception of 'help', all subcommands can share a  
@@ -136,7 +161,7 @@ def parse_arguments(action_arguments=None):
         subparser = subparsers.choices[subcommand]
         subparser.add_argument('-v', '--verbose', action='count', dest='verbose', 
             help='Increase verbosity of screen output (eg, -v is verbose,' + \
-                 '-vv more so', default=0)
+                 '-vv more so)', default=0)
 
     # Determine we have called ourself (e.g. "help <action>")
     # Set arguments to display help if parameter is set
@@ -151,36 +176,7 @@ def parse_arguments(action_arguments=None):
     if action == 'help':
         parse_arguments(action_arguments=[str(arguments.action[0]), '-h'])
 
-    print arguments
-
     return action, arguments
-
-
-
-#    loglevel = {
-#        0:logging.WARNING,
-#        1:logging.INFO,
-#        2:logging.DEBUG
-#        }.get(options.verbose, logging.DEBUG)
-#
-#    verbose_format = '%(levelname)s %(module)s %(lineno)s %(message)s'
-#
-#    logformat = {0:'%(message)s',
-#        1:verbose_format,
-#        2:verbose_format}.get(options.verbose, verbose_format)
-#
-#    # set up logging
-#    logging.basicConfig(file=sys.stdout, format=logformat, level=loglevel)
-#
-#        try:
-#            if hasattr(Taxonomy.package, action):
-#                getattr(Taxonomy.package, action)(options)
-#            else:
-#                log.error('Sorry: the %s action is not yet implemented' % action)
-#                sys.exit(1)
-#        except OSError:
-#            log.error('A package named "%s" already exists' % options.package_name)
-#            sys.exit(2)
 
 
 

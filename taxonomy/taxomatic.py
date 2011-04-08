@@ -59,7 +59,7 @@ import hashlib
 log = logging
 
 import taxonomy
-from taxonomy.package import manifest_name, package_contents, write_config
+#from taxonomy.package import manifest_name, package_contents, write_config
 from taxonomy import __version__ as version
 
 class SimpleHelpFormatter(IndentedHelpFormatter):
