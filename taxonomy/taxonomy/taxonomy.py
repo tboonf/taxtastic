@@ -26,9 +26,9 @@ class Taxonomy(object):
 
         Example:
         > from sqlalchemy import create_engine
-        > from Taxonomy import Taxonomy, ncbi
+        > from taxonomy import Taxonomy, ncbi
         > engine = create_engine('sqlite:///%s' % dbname, echo=False)
-        > tax = Taxonomy(engine, Taxonomy.ncbi.ranks)
+        > tax = Taxonomy(engine, taxonomy.ncbi.ranks)
 
           """
 
