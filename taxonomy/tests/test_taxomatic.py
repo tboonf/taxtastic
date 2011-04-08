@@ -6,6 +6,7 @@ import unittest
 import logging
 import shutil
 import commands
+import re
 
 import config
 
