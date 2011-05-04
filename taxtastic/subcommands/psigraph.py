@@ -5,10 +5,13 @@ from Bio import Phylo
 from collections import Counter, defaultdict
 from itertools import combinations
 import argparse
+import logging
 import csv
 import sys
 
 from taxtastic import algotax, refpkg
+
+log = logging.getLogger(__name__)
 
 def build_parser(parser):
     parser.add_argument('refpkg', nargs=1,
@@ -18,6 +21,7 @@ def build_parser(parser):
         help='the name of the csv file to write out')
 
 def action(args):
+    log.info('loading reference package')
     args.outfile = csv.writer(args.outfile)
     args.outfile.writerow(['rank', 'color', 'leaves', 'min_psi', 'total_psi'])
     rp = refpkg.Refpkg(args.refpkg[0])
@@ -48,11 +52,15 @@ def action(args):
     """)
 
     for rank, in rank_order:
+        log.info('processing rank %s', rank)
         seq_colors = rank_map[rank]
         if not seq_colors:
             continue
         colors = {}
         for seq, color in seq_colors:
+            if seq not in clade_map:
+                logging.warn('sequence %r not found in the taxonomy', seq)
+                continue
             colors[clade_map[seq]] = color
         metadata = algotax.color_clades(tree, colors)
         psis = defaultdict(Counter)
@@ -60,14 +68,17 @@ def action(args):
         for clade in tree.find_elements(order='postorder'):
             if clade is tree: continue
             if clade.is_terminal():
+                if clade not in colors: continue
                 psis[clade][colors[clade]] += 1
                 continue
             for child in clade:
                 psis[clade] += psis[child]
 
-        for color in metadata.cut_colors[tree.root]:
-            for clade in tree.find_elements(terminal=False):
-                if clade is tree: continue
+        for clade in tree.find_elements(terminal=False):
+            if clade is tree: continue
+            all_colors = algotax.union(
+                set(psis[child].elements()) for child in clade)
+            for color in all_colors:
                 if any(psis[child][color] == 0 for child in clade):
                     continue
                 args.outfile.writerow([
