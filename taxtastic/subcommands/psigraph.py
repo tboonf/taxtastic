@@ -68,6 +68,8 @@ def action(args):
         for color in metadata.cut_colors[tree.root]:
             for clade in tree.find_elements(terminal=False):
                 if clade is tree: continue
+                if any(psis[child][color] == 0 for child in clade):
+                    continue
                 args.outfile.writerow([
                     rank,
                     color,
