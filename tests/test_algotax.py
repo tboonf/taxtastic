@@ -3,10 +3,13 @@ from StringIO import StringIO
 import unittest
 from taxtastic import algotax
 
+def treestring(s):
+    return Phylo.read(StringIO(s), 'newick')
+
 class ColoredTreeTestMixin(object):
     @classmethod
     def setup_class(cls):
-        cls.parsed_tree = Phylo.read(StringIO(cls.tree), 'newick')
+        cls.parsed_tree = treestring(cls.tree)
         cls.colors = {n: n.name for n in cls.parsed_tree.get_terminals()}
         cls.metadata = algotax.color_clades(cls.parsed_tree, cls.colors)
 
@@ -100,38 +103,52 @@ class AlgotaxWalkTest5(AlgotaxWalkTestMixin, unittest.TestCase):
     tree = '(A,(A,(B,C)))'
     convex_tree_size = 4
 
-class RerootingTestMixin(object):
-    @classmethod
-    def setup_class(cls):
-        cls.parsed_tree = Phylo.read(StringIO(cls.tree), 'newick')
-        cls.mrcas = {n: int(n.branch_length)
-            for n in cls.parsed_tree.find_clades()}
-        cls.new_root = algotax.reroot(cls.parsed_tree.root, cls.mrcas.get)
+def subrk_min_of_map(subrk_map):
+    def subrk_min(terminals):
+        names = {n.name for n in terminals}
+        return subrk_map.get(''.join(sorted(names)), 0)
+    return subrk_min
 
-    @classmethod
-    def setUpClass(cls):
-        super(RerootingTestMixin, cls).setUpClass()
-        cls.setup_class()
+def node_number(tree, node):
+    return next(e
+        for e, n in enumerate(tree.find_clades(order='postorder'))
+        if n is node)
 
-    def test_rerooting(self):
-        root_number = next(e
-            for e, n in enumerate(
-                self.parsed_tree.find_clades(order='postorder'))
-            if n is self.new_root)
-        self.assertEqual(root_number, self.root_number)
+class RerootingTests(unittest.TestCase):
+    def test_single_root(self):
+        tree = treestring('(A,(B,C))')
+        subrk_map = {
+            'A': 1,
+            'B': 1,
+            'C': 2,
+        }
+        first_root, other_roots = algotax.reroot(
+            tree.root, subrk_min_of_map(subrk_map))
+        self.assertFalse(other_roots)
+        self.assertEqual(node_number(tree, first_root), 3)
 
-class RerootingTest1(RerootingTestMixin, unittest.TestCase):
-    tree = '(0,0)'
-    root_number = 2
+    def test_two_roots(self):
+        tree = treestring('(A,B,(C,D))')
+        subrk_map = dict.fromkeys('ABCD', 1)
+        first_root, other_roots = algotax.reroot(
+            tree.root, subrk_min_of_map(subrk_map))
+        self.assertTrue(other_roots)
+        self.assertIn(node_number(tree, first_root), {4, 5})
+        self.assertEqual(len(other_roots), 1)
+        other_root, = other_roots
+        self.assertIn(node_number(tree, other_root), {4, 5})
+        self.assertNotEqual(first_root, other_root)
 
-class RerootingTest2(RerootingTestMixin, unittest.TestCase):
-    tree = '(0,(2,2)0)'
-    root_number = 4
-
-class RerootingTest3(RerootingTestMixin, unittest.TestCase):
-    tree = '(6,(2,((7,7)3,(7,7)3)0),6)'
-    root_number = 8
-
-class RerootingTest4(RerootingTestMixin, unittest.TestCase):
-    tree = '((((6,7)4,5)2,3)0,1)'
-    root_number = 0
+    def test_three_roots(self):
+        tree = treestring('(A,B,(C,(D,(E,(F,G)))))')
+        subrk_map = dict.fromkeys('ABCDEFG', 1)
+        first_root, other_roots = algotax.reroot(
+            tree.root, subrk_min_of_map(subrk_map), False)
+        self.assertTrue(other_roots)
+        self.assertIn(node_number(tree, first_root), {8, 9, 10})
+        self.assertEqual(len(other_roots), 2)
+        first_other_root, second_other_root = other_roots
+        self.assertIn(node_number(tree, first_other_root), {8, 9, 10})
+        self.assertIn(node_number(tree, second_other_root), {8, 9, 10})
+        self.assertNotEqual(first_root, first_other_root)
+        self.assertNotEqual(first_root, second_other_root)

@@ -139,7 +139,7 @@ def walk(cur, metadata):
 
 Ranking = collections.namedtuple('Ranking', 'rank node')
 
-def reroot_from_rp(root, rp):
+def reroot_from_rp(root, rp, stop_at_first_root=True):
     name_map = dict(rp.db.cursor().execute("""
         SELECT seqname, tax_id
         FROM   sequences
@@ -149,21 +149,77 @@ def reroot_from_rp(root, rp):
         FROM   taxa
                JOIN ranks USING (rank)
     """))
-    def subrk_min(t):
+    def subrk_min(terminals):
         mrca = rp.most_recent_common_ancestor(
-            *set(name_map[n.name] for n in t.get_terminals()))
-        logging.debug("mrca for %r is %r", t, mrca)
+            *{name_map[n.name] for n in terminals})
         return rank_map[mrca]
 
-    return reroot(root, subrk_min)
+    return reroot(root, subrk_min, stop_at_first_root)
 
-def reroot(cur, subrk_min):
-    while True:
-        if len(cur.clades) < 2:
-            return cur
+def all_parents(tree):
+    parents = {}
+    for clade in tree.find_clades():
+        for child in clade:
+            parents[child] = clade
+    return parents
 
-        ranks = sorted(Ranking(subrk_min(n), n) for n in cur)
-        logging.debug("rankings: %r", ranks)
+def reroot(cur, subrk_min, stop_at_first_root=True):
+    parents = all_parents(cur)
+    all_terminals = set(cur.get_terminals())
+    prev = None
+
+    log.debug('root: %r', cur)
+
+    def all_clades(node):
+        clades = list(node.clades)
+        if node in parents:
+            clades.append(parents[node])
+        return clades
+
+    def find_root(node):
+        if not node.clades:
+            return None
+        ranks = [Ranking(subrk_min(n.get_terminals()), n) for n in node.clades]
+        if node in parents:
+            terminals = set(node.get_terminals())
+            ranks.append(
+                Ranking(subrk_min(all_terminals - terminals), parents[node]))
+        ranks.sort()
+        log.debug("rankings: %r", ranks)
         if ranks[0].rank == ranks[1].rank:
-            return cur
-        cur = ranks[0].node
+            return None
+        return ranks[0].node
+
+    while True:
+        next = find_root(cur)
+        if next is None:
+            root = cur
+            break
+        elif next == prev:
+            # If we're backtracking, there will only be two roots; we won't
+            # need to traverse the tree for more roots.
+            return cur, {prev}
+        cur, prev = next, cur
+
+    log.debug('found first root: %r', root)
+
+    def is_root(node):
+        if not node.clades:
+            return False
+        return find_root(node) is None
+
+    other_roots = {n for n in all_clades(root) if is_root(n)}
+    if stop_at_first_root:
+        return root, other_roots
+
+    seen = other_roots | {cur}
+    stack = list(other_roots)
+    while stack:
+        log.debug('stack (%d): %r', len(stack), stack)
+        cur = stack.pop()
+        seen.add(cur)
+        if find_root(cur) is None and cur.clades:
+            other_roots.add(cur)
+            stack.extend(n for n in all_clades(cur) if n not in seen)
+
+    return root, other_roots
