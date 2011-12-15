@@ -25,7 +25,6 @@ except ImportError:
 # and that the (empty) file 'taxtastic/data/sha' exists.
 subprocess.call('git log --pretty=format:%h -n 1 > taxtastic/data/sha', shell=True)
 from taxtastic import __version__
-assert __version__ == '0.3.2.' + subprocess.check_output(['git','log','--pretty=format:%h','-n','1'])
 
 # all files with .py extension in top level are assumed to be scripts
 scripts = ['taxit'] + list(set(glob.glob('*.py')) - set(['setup.py', 'distribute_setup.py']))
