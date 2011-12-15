@@ -54,7 +54,7 @@ with open(os.devnull, 'w') as stdout, open(os.devnull, 'w') as stderr:
     # sure that the shafile retains its original attributes since this
     # command may be run as root.
     if git_available:
-        shafile = 'opiate/data/sha'
+        shafile = join('taxtastic','data','sha')
         stats = os.stat(shafile)
         os.rename(shafile, shafile+'.bak')
         subprocess.check_call(['git', 'checkout', shafile], **outputs)
@@ -77,6 +77,7 @@ params = {'author': 'Noah Hoffman',
           'scripts': scripts,
           'url': 'https://github.com/fhcrc/taxtastic',
           'version': __version__,
+          'package_data': {'taxtastic': [join('data',f) for f in ['sha']]},
           'install_requires': ['sqlalchemy', 'decorator']}
 
 setup(**params)

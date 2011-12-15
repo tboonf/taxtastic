@@ -12,15 +12,19 @@
 #
 #    You should have received a copy of the GNU General Public License
 #    along with taxtastic.  If not, see <http://www.gnu.org/licenses/>.
+
+from os import path
+
 def _safeint(s):
     try:
         return int(s)
     except ValueError:
         return s
 
-with open(path.join(path.dirname(__file__), 'data', 'sha')) as f:
+_shafile = path.join(path.dirname(__file__), 'data', 'sha')
+with open(_shafile) as f:
     sha = f.read().strip()
-        
+
 __version__ = "0.3.2" + ('.' + sha if sha else '')
 __version_info__ = tuple([_safeint(num) for num in __version__.split('.')])
 
