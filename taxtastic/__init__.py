@@ -18,7 +18,11 @@ def _safeint(s):
     except ValueError:
         return s
 
-__version__ = "0.3.1"
+with open(path.join(path.dirname(__file__), 'data', 'sha')) as f:
+    sha = f.read().strip()
+        
+__version__ = "0.3.2" + ('.' + sha if sha else '')
 __version_info__ = tuple([_safeint(num) for num in __version__.split('.')])
+
 
 
