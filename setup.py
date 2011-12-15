@@ -23,7 +23,7 @@ except ImportError:
 # taxtastic/data/sha    filter=sha
 #
 # and that the (empty) file 'taxtastic/data/sha' exists.
-subprocess.call(['git log --pretty=format:%h -n 1 > taxtastic/data/sha'], shell=True)
+subprocess.call('git log --pretty=format:%h -n 1 > taxtastic/data/sha', shell=True)
 from taxtastic import __version__
 
 # all files with .py extension in top level are assumed to be scripts

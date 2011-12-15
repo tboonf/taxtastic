@@ -22,8 +22,11 @@ def _safeint(s):
         return s
 
 _shafile = path.join(path.dirname(__file__), 'data', 'sha')
-with open(_shafile) as f:
-    sha = f.read().strip()
+try:
+    with open(_shafile) as f:
+        sha = f.read().strip()
+except Exception, e:
+    sha = ''
 
 __version__ = "0.3.2" + ('.' + sha if sha else '')
 __version_info__ = tuple([_safeint(num) for num in __version__.split('.')])
