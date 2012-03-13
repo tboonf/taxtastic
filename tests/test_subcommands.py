@@ -182,6 +182,7 @@ class TestTaxtable(OutputRedirectMixin, unittest.TestCase):
                     seq_info = None
                     verbosity = 0
                     out_file = h
+                    taxonomy = 'ncbi'
                 self.assertEqual(taxtable.action(_Args()), 0)
             self.assertEqual(refpkg.md5file(out), '88ed5643d4754c60d5c472ff0b298f0f')
 
@@ -195,6 +196,7 @@ class TestTaxtable(OutputRedirectMixin, unittest.TestCase):
                     seq_info = None
                     verbosity = 0
                     out_file = h
+                    taxonomy = 'ncbi'
                 self.assertEqual(taxtable.action(_Args()), 1)
 
     def test_seqinfo(self):
@@ -207,6 +209,7 @@ class TestTaxtable(OutputRedirectMixin, unittest.TestCase):
                 seq_info = ifp
                 out_file = tf
                 verbosity = 0
+                taxonomy = 'ncbi'
             self.assertEqual(taxtable.action(_Args()), 0)
             # No output check at present
             self.assertTrue(tf.tell() > 0)
