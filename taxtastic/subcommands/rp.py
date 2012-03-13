@@ -1,5 +1,8 @@
 """
-Run a series of deeper checks on a RefPkg.
+Resolve path; get the path to a file in the reference package.
+
+Usage is simple: `taxit rp my.refpkg tree` will cause the absolute path to the
+`tree` file in the refpkg to be written to stdout.
 """
 # This file is part of taxtastic.
 #
@@ -15,23 +18,22 @@ Run a series of deeper checks on a RefPkg.
 #
 #    You should have received a copy of the GNU General Public License
 #    along with taxtastic.  If not, see <http://www.gnu.org/licenses/>.
-import os.path
 
-import taxtastic.refpkg
+import logging
+import sys
+
+from taxtastic import refpkg
+
+log = logging.getLogger(__name__)
 
 def build_parser(parser):
-    parser.add_argument('refpkg', action='store', metavar='REFPKG',
-        help='Path to Refpkg to check')
+    parser.add_argument('refpkg', action='store', metavar='refpkg',
+                        help='the reference package to operate on')
+    parser.add_argument('item', action='store', metavar='item',
+                        help='the item to get out of the reference package')
+
 
 def action(args):
-    if not os.path.isdir(args.refpkg):
-        print args.refpkg, 'is not a directory.'
-        return 1
-
-    r = taxtastic.refpkg.Refpkg(args.refpkg)
-    msg = r.is_ill_formed()
-    if msg:
-        print msg
-        return 1
-    else:
-        return 0
+    rp = refpkg.Refpkg(args.refpkg)
+    sys.stdout.write('%s\n' % rp.file_abspath(args.item))
+    return 0

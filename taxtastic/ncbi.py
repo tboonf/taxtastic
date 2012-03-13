@@ -31,7 +31,6 @@ log = logging
 ncbi_data_url = 'ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdmp.zip'
 
 # Schema specific to NCBI taxonomy
-
 ranks = taxdb.ranks[:]
 
 def db_connect(dbname='ncbi_taxonomy.db', schema=db_schema, clobber=False):

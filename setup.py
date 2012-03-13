@@ -2,6 +2,12 @@
 Create unix package:    python setup.py sdist
 """
 
+import os
+import subprocess
+import shutil
+from os.path import join
+import glob
+
 try:
     from setuptools import setup, find_packages
 except ImportError:
@@ -9,8 +15,8 @@ except ImportError:
     distribute_setup.use_setuptools()
     from setuptools import setup, find_packages
 
-import glob
-
+# Provide the abbreviated git sha with the version number.
+subprocess.call('git log --pretty=format:%h -n 1 > taxtastic/data/sha', shell=True)
 from taxtastic import __version__
 
 # all files with .py extension in top level are assumed to be scripts
@@ -24,7 +30,8 @@ params = {'author': 'Noah Hoffman',
           'scripts': scripts,
           'url': 'https://github.com/fhcrc/taxtastic',
           'version': __version__,
-          'install_requires': ['sqlalchemy', 'decorator']}
+          'package_data': {'taxtastic': [join('data',f) for f in ['sha']]},
+          'install_requires': ['sqlalchemy', 'decorator', 'biopython']}
 
 setup(**params)
 
