@@ -196,7 +196,7 @@ def _parse_classes(classes, otu_id):
     :param classes: semicolon delimited lineage from GreenGenes
     :param otu_id: OTU number
     """
-    split = [i.split('__') for i in classes.split(';')]
+    split = [i.strip().split('__') for i in classes.split(';')]
     # Start with a single root node
     result = [[taxdb.root_name, taxdb.root_name]]
 
