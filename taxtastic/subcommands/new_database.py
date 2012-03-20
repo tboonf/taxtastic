@@ -29,7 +29,7 @@ def build_parser(parser):
         '-d', '--database-file',
         dest = 'database_file',
         metavar = 'FILE',
-        help = """Name of the sqlite database file [TAXSRC_taxonony.db].""")
+        help = """Name of the sqlite database file [TAXSRC_taxonomy.db].""")
 
     parser.add_argument(
         '-p', '--download-dir',

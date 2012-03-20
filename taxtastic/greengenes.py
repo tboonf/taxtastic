@@ -16,11 +16,10 @@
 Methods and variables specific to the GreenGenes taxonomy.
 """
 import bisect
-import contextlib
 import logging
 import itertools
+import os.path
 import sqlite3
-import tarfile
 
 from . import taxdb
 from .errors import IntegrityError
@@ -33,9 +32,8 @@ ranks = taxdb.ranks
 _rank_map = {'k': 'kingdom', 'p': 'phylum', 'c': 'class', 'o': 'order',
         'f': 'family', 'g': 'genus', 's': 'species'}
 
-greengenes_data_url = 'http://greengenes.lbl.gov/Download/Sequence_Data/' \
-        'Fasta_data_files/Caporaso_Reference_OTUs/gg_otus_4feb2011.tgz'
-tax_map = 'gg_otus_4feb2011/taxonomies/greengenes_tax.txt'
+download_url = 'http://www.secondgenome.com/go/2011-greengenes-taxonomy/'
+tax_map = 'taxonomy_16S_all_gg_2011_1'
 
 db_connect = taxdb.db_connect
 
@@ -158,26 +156,27 @@ VALUES (?, ?, 0, ?)""", (parent, orig, name_class))
                 parent = _get_or_insert(name, rank, parent, source_id)
             _alternate_name(parent, orig)
 
-def db_load(con, handle, maxrows=None):
+def db_load(con, fname, maxrows=None):
     """
-    Load data from zip archive into database identified by con. Data
+    Load data from taxonomic map into database identified by con. Data
     is not loaded if target tables already contain data.
 
     :param con: Database connection
     :param archive: Tar archive path
     :param maxrows: Maximum rows to load (ignored)
     """
-    try:
-        cursor = con.cursor()
-        if not taxdb.has_row(cursor, 'nodes'):
-            next(handle)
-            rows = _parse_greengenes_lineages(handle)
-            _load_taxonomy(rows, con)
-        _clean_species(con)
-    except sqlite3.IntegrityError, err:
-        raise IntegrityError(err)
+    with open(fname) as handle:
+        try:
+            cursor = con.cursor()
+            if not taxdb.has_row(cursor, 'nodes'):
+                next(handle) # Skip header
+                rows = _parse_greengenes_lineages(handle)
+                _load_taxonomy(rows, con)
+            _clean_species(con)
+        except sqlite3.IntegrityError, err:
+            raise IntegrityError(err)
 
-def fetch_data(dest_dir='.', clobber=False, url=greengenes_data_url):
+def fetch_data(dest_dir='.', clobber=False, url=None):
     """
     Download data from greengenes required to generate local taxonomy
     database.
@@ -190,7 +189,12 @@ def fetch_data(dest_dir='.', clobber=False, url=greengenes_data_url):
     downloaded zip archive, and downloaded is True if a new files was
     downloaded, false otherwise.
     """
-    return taxdb.fetch_url(url, dest_dir, clobber)
+    log.warn("Downloading is not implemented for GreenGenes.\n"
+            "Please download '%s' manually from '%s'", tax_map, download_url)
+    dest = os.path.join(dest_dir, tax_map)
+    if not os.path.exists(dest):
+        raise IOError("Missing file: {0}".format(dest))
+    return dest, False
 
 def _parse_classes(classes):
     """
@@ -235,11 +239,3 @@ def _parse_greengenes_lineages(handle):
         otu_id, classes = line.rstrip().split('\t')
         parsed = _parse_classes(classes)
         yield parsed, classes
-
-@contextlib.contextmanager
-def tar_member(archive, fname=tax_map):
-    """
-    Provides a file-like object for the path fname in tar archive
-    """
-    with tarfile.open(archive) as tfile:
-        yield tfile.extractfile(fname)
