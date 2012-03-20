@@ -119,7 +119,7 @@ def _load_taxonomy(rows, con):
 
     count = itertools.count()
 
-    def _get_or_insert(name, rank, parent_id, source_id):
+    def _get_or_insert(name, rank, parent_id, source_id, alternate_names=None):
         # Check for existence
         cursor.execute("SELECT tax_id from names WHERE tax_name = ?", [name])
         tax_id = cursor.fetchone()
@@ -138,14 +138,24 @@ def _load_taxonomy(rows, con):
         cursor.execute("""INSERT INTO names (tax_id, tax_name, is_primary)
                 VALUES (?, ?, 1)""", (tax_id, name))
         return tax_id
+    def _alternate_name(tax_id, name, name_class='greengenes lineage'):
+        cursor.execute("SELECT tax_id FROM names WHERE tax_name = ? AND name_class = ?",
+                (name, name_class))
+        tax_id = cursor.fetchone()
+        if tax_id:
+            return
+        else:
+            cursor.execute("""INSERT INTO names (tax_id, tax_name, is_primary, name_class)
+VALUES (?, ?, 0, ?)""", (parent, orig, name_class))
 
     with con:
-        for classes in rows:
+        for classes, orig in rows:
             parent = None
             for rank, name in classes:
                 parent = _get_or_insert(name, rank, parent, source_id)
+            _alternate_name(parent, orig)
 
-def db_load(con, archive, maxrows=None):
+def db_load(con, handle, maxrows=None):
     """
     Load data from zip archive into database identified by con. Data
     is not loaded if target tables already contain data.
@@ -157,9 +167,9 @@ def db_load(con, archive, maxrows=None):
     try:
         cursor = con.cursor()
         if not taxdb.has_row(cursor, 'nodes'):
-            with tar_member(archive) as handle:
-                rows = _parse_greengenes_lineages(handle)
-                _load_taxonomy(rows, con)
+            next(handle)
+            rows = _parse_greengenes_lineages(handle)
+            _load_taxonomy(rows, con)
         _clean_species(con)
     except sqlite3.IntegrityError, err:
         raise IntegrityError(err)
@@ -220,9 +230,8 @@ def _parse_greengenes_lineages(handle):
     """
     for line in handle:
         otu_id, classes = line.rstrip().split('\t')
-        otu_id = int(otu_id)
-        classes = _parse_classes(classes)
-        yield classes
+        parsed = _parse_classes(classes)
+        yield parsed, classes
 
 @contextlib.contextmanager
 def tar_member(archive, fname=tax_map):
