@@ -27,7 +27,7 @@ from .errors import IntegrityError
 
 log = logging
 
-ranks = taxdb.ranks + ['otu']
+ranks = taxdb.ranks
 
 # Map from rank abbreviation to taxdb rank name
 _rank_map = {'k': 'kingdom', 'p': 'phylum', 'c': 'class', 'o': 'order',
@@ -38,7 +38,6 @@ greengenes_data_url = 'http://greengenes.lbl.gov/Download/Sequence_Data/' \
 tax_map = 'gg_otus_4feb2011/taxonomies/greengenes_tax.txt'
 
 db_connect = taxdb.db_connect
-
 
 def _get_source_id(con):
     """Get the source.id corresponding to greengenes"""
@@ -180,14 +179,13 @@ def fetch_data(dest_dir='.', clobber=False, url=greengenes_data_url):
     """
     return taxdb.fetch_url(url, dest_dir, clobber)
 
-def _parse_classes(classes, otu_id):
+def _parse_classes(classes):
     """
     Parse classes from GreenGenes taxonomy
 
     classes - GreenGenes taxonomy assignments, as semicolon delimited list of
-    [rank_key]__[ank] items, e.g.
+    [rank_key]__[class] items, e.g.
     'k__Bacteria';p__Proteobacteria'
-    otu_id - OTU ID
 
     If species starts with the genus, a space is inserted after genus
 
@@ -210,8 +208,6 @@ def _parse_classes(classes, otu_id):
         genus = result[-2][1]
         if species.startswith(genus) and species[len(genus)] != ' ':
             result[-1][1] = _add_space(species, genus)
-
-    result.append(('otu', str(otu_id)))
     return result
 
 def _parse_greengenes_lineages(handle):
@@ -225,7 +221,7 @@ def _parse_greengenes_lineages(handle):
     for line in handle:
         otu_id, classes = line.rstrip().split('\t')
         otu_id = int(otu_id)
-        classes = _parse_classes(classes, otu_id)
+        classes = _parse_classes(classes)
         yield classes
 
 @contextlib.contextmanager
