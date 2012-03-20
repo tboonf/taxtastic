@@ -64,8 +64,10 @@ def _clean_species(con):
     :param con: Database connection
     """
     cursor = con.cursor()
-    all_genus = dict(cursor.execute("""SELECT names.tax_name, names.tax_id
-    FROM nodes JOIN names USING (tax_id) WHERE nodes.rank = 'genus'"""))
+    all_genus = dict(cursor.execute("""
+    SELECT names.tax_name, names.tax_id
+    FROM nodes JOIN names USING (tax_id)
+    WHERE nodes.rank = 'genus'"""))
 
     # Sorted list of all genus in the database, for searching
     keys = sorted(all_genus)
@@ -86,18 +88,19 @@ def _clean_species(con):
     FROM nodes snode INNER JOIN nodes gnode ON snode.parent_id = gnode.tax_id
         INNER JOIN names sname ON sname.tax_id = snode.tax_id
         INNER JOIN names gname ON gname.tax_id = gnode.tax_id
-    WHERE snode.rank = 'species' AND gnode.rank = 'genus' AND
+    WHERE sname.is_primary = 1 AND
+       snode.rank = 'species' AND gnode.rank = 'genus' AND
        SUBSTR(sname.tax_name, 1, LENGTH(gname.tax_name) + 1) <>
            gname.tax_name + ' ';""")
 
     with con:
-        stmt = "UPDATE names SET tax_name = ? WHERE tax_id = ?"
+        stmt = "UPDATE names SET tax_name = ? WHERE tax_id = ? AND tax_name = ?"
         args = []
         for tax_id, tax_name in cursor:
             genus = find_genus(tax_name)
             if genus:
                 new_tax_name = _add_space(tax_name, genus)
-                args.append((new_tax_name, tax_id))
+                args.append((new_tax_name, tax_id, tax_name))
         cursor.executemany(stmt, args)
 
 def _load_taxonomy(rows, con):
