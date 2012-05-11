@@ -16,6 +16,7 @@
 Methods and variables specific to the GreenGenes taxonomy.
 """
 import bisect
+import collections
 import logging
 import itertools
 import os.path
@@ -119,27 +120,38 @@ def _load_taxonomy(rows, con):
         return
 
     count = itertools.count()
+    # map from (name, parent_id) to tax_id
+    tax_ids = {}
+    # map from tax_id to name
+    tax_names = {}
+    # Parent tax_ids for a (tax_name, rank) pair
+    parents = collections.defaultdict(set)
 
-    def _get_or_insert(name, rank, parent_id, source_id, alternate_names=None):
-        # Check for existence
-        cursor.execute("SELECT tax_id from names WHERE tax_name = ?", [name])
-        tax_id = cursor.fetchone()
-        if tax_id:
-            return tax_id[0]
+    def get_or_insert(name, rank, parent_id, source_id, alternate_names=None):
+        try:
+            return tax_ids[name, parent_id]
+        except KeyError:
+            pass
 
-        # No tax_id found - create
+        # Generate a new tax_id
         tax_id = 'GG{0:08d}'.format(count.next())
+        tax_ids[name, parent_id] = tax_id
+        tax_names[tax_id] = name
+        parents[name, rank].add(parent_id)
 
         # If no parent id, node should be it's own parent (root)
         if parent_id is None:
             parent_id = tax_id
 
+        # Add to database
         cursor.execute("""INSERT INTO nodes (tax_id, parent_id, rank, source_id)
                 VALUES (?, ?, ?, ?)""", (tax_id, parent_id, rank, source_id))
         cursor.execute("""INSERT INTO names (tax_id, tax_name, is_primary)
                 VALUES (?, ?, 1)""", (tax_id, name))
+
         return tax_id
-    def _alternate_name(tax_id, name, name_class='greengenes lineage'):
+
+    def alternate_name(tax_id, name, name_class='greengenes lineage'):
         cursor.execute("SELECT tax_id FROM names WHERE tax_name = ? AND name_class = ?",
                 (name, name_class))
         tax_id = cursor.fetchone()
@@ -149,12 +161,32 @@ def _load_taxonomy(rows, con):
             cursor.execute("""INSERT INTO names (tax_id, tax_name, is_primary, name_class)
 VALUES (?, ?, 0, ?)""", (parent, orig, name_class))
 
+    def fix_polyphyly():
+        """
+        Give a unique name to each polyphyletic group
+        """
+        polyphyly = ((k, v) for k, v in parents.items() if len(v) > 1)
+        for (child, rank), p in polyphyly:
+            logging.warn("Renaming items from polyphyletic %s %s", rank, child)
+            for parent in p:
+                tax_id = tax_ids[child, parent]
+                parent_name = tax_names[parent]
+                new_name = '{0} [{1}]'.format(child, parent_name)
+                logging.warn("  '%s' -> '%s'", child, new_name)
+                cursor.execute("""UPDATE names
+SET tax_name = ?
+WHERE tax_id = ? AND tax_name = ?""", (new_name, tax_id, child))
+                assert cursor.rowcount == 1
+
     with con:
         for classes, orig in rows:
             parent = None
             for rank, name in classes:
-                parent = _get_or_insert(name, rank, parent, source_id)
-            _alternate_name(parent, orig)
+                parent = get_or_insert(name, rank, parent, source_id)
+            alternate_name(parent, orig)
+
+        # Fixup
+        fix_polyphyly()
 
 def db_load(con, fname, maxrows=None):
     """
